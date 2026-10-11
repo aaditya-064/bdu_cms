@@ -1,7 +1,22 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 import ImageSchema from "./image.model";
 
-const staffSchema = new mongoose.Schema({
+export interface IStaff extends Document {
+  full_name: String;
+  employee_id: String;
+  department: String;
+  position: String;
+  phone: Number;
+  profile_image: {};
+  email: String;
+  joining_date: Date;
+  monthly_salary: Number;
+  status: String;
+  address: String;
+  notes: String;
+}
+
+const staffSchema = new Schema<IStaff>({
   full_name: {
     type: String,
     required: [true, "full_name is required"],
