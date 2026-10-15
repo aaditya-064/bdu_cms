@@ -34,7 +34,6 @@ const vaultSchema = new Schema<IVault>({
   },
   category: {
     type: String,
-    required: [true, "category is required"],
     enum: ["Bank", "Governemnt"],
   },
   notes: {
@@ -44,7 +43,6 @@ const vaultSchema = new Schema<IVault>({
 
   status: {
     type: String,
-    required: [true, "status is required"],
     enum: ["Active", "inActive"],
   },
   updated_at: {
