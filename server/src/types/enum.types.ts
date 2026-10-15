@@ -4,6 +4,6 @@ export enum Role {
   DIRECTOR = "DIRECTOR",
 }
 
-export const Admin_Only = [Role.ADMIN, Role.DIRECTOR];
+export const Admin_Only = [Role.ADMIN];
 export const STAFF_Only = [Role.STAFF, Role.ADMIN];
-export const Director_Only = [Role.DIRECTOR, Role.ADMIN];
+export const Admin_and_Director = [Role.DIRECTOR, Role.ADMIN];
