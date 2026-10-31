@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { createStaff, updateStaff } from "@/api/staff.api";
 import { useAuth } from "@/hooks/auth.hook";
-import { canManage, canEditStaff } from "@/utils/permissions";
+import { canCreateDocuments, canEditStaff } from "@/utils/permissions";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea } from "@/components/ui/field";
@@ -28,7 +28,7 @@ export function StaffForm({
     setError(null);
     setPending(true);
     try {
-      if (staff ? !canEditStaff(user) : !canManage(user))
+      if (staff ? !canEditStaff(user) : !canCreateDocuments(user))
         throw new Error("You do not have permission to save this record.");
       const data = new FormData(event.currentTarget);
       for (const key of [
