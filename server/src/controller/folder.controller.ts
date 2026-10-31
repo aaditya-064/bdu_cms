@@ -40,59 +40,34 @@ export const create = catchAsync(async (req, res) => {
 //* update (rename or move)
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const { name, parentFolder, category } = req.body;
+  const { name, parentFolder } = req.body;
 
-  const folder = await Folder.findOne({
+  const existingFile = await File.findOne({
     _id: id,
     deletedAt: null,
   });
 
-  if (!folder) {
-    throw new AppError("Folder not found", 404);
+  if (!existingFile) {
+    throw new AppError("File not found", 404);
   }
 
-  if (name !== undefined && !name.trim()) {
-    throw new AppError("Folder name cannot be empty", 400);
-  }
-
-  if (parentFolder !== undefined && parentFolder !== null) {
-    if (parentFolder === id) {
-      throw new AppError("Folder cannot be its own parent", 400);
-    }
-
-    const parent = await Folder.findOne({
+  if (parentFolder) {
+    const folder = await Folder.findOne({
       _id: parentFolder,
       deletedAt: null,
     });
 
-    if (!parent) {
+    if (!folder) {
       throw new AppError("Parent folder not found", 404);
-    }
-
-    // Prevent moving a folder into one of its descendants
-    let current: typeof parent | null = parent;
-
-    while (current) {
-      if (current._id.toString() === id) {
-        throw new AppError("Cannot move folder into its subfolder", 400);
-      }
-
-      if (!current.parentFolder) break;
-
-      current = await Folder.findOne({
-        _id: current.parentFolder,
-        deletedAt: null,
-      });
     }
   }
 
-  const updatedFolder = await Folder.findByIdAndUpdate(
-    id,
+  const updatedFile = await File.findOneAndUpdate(
+    { _id: id, deletedAt: null },
     {
       $set: {
-        ...(name !== undefined && { name }),
-        ...(parentFolder !== undefined && { parentFolder }),
-        ...(category !== undefined && { category }),
+        name: name ?? existingFile.name,
+        parentFolder: parentFolder ?? existingFile.parentFolder,
         updatedBy: req.user._id,
       },
     },
@@ -100,9 +75,9 @@ export const update = catchAsync(async (req, res) => {
   );
 
   sendResponse(res, {
-    message: `Folder:${id} updated successfully`,
+    message: "File updated successfully",
     statusCode: 200,
-    data: updatedFolder,
+    data: updatedFile,
   });
 });
 

@@ -2,8 +2,10 @@ import { sendResponse } from "../utils/sendResponse.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
 import AppError from "../utils/appError.utils";
 import Staff from "../models/staff.model";
+import { upload, deleteFile } from "../utils/cloudinary.utils";
 
 //* create
+
 export const create = catchAsync(async (req, res) => {
   const {
     full_name,
@@ -14,17 +16,20 @@ export const create = catchAsync(async (req, res) => {
     email,
     joining_date,
     monthly_salary,
-    profile_image,
     status,
     address,
     notes,
   } = req.body;
+
+  const file = req.file;
 
   const existingStaff = await Staff.findOne({ employee_id });
 
   if (existingStaff) {
     throw new AppError("Employee ID already exists", 400);
   }
+
+  const uploaded = file ? await upload(file) : null;
 
   const staff = await Staff.create({
     full_name,
@@ -35,7 +40,12 @@ export const create = catchAsync(async (req, res) => {
     email,
     joining_date,
     monthly_salary,
-    profile_image,
+    profile_image: uploaded
+      ? {
+          path: uploaded.path,
+          public_id: uploaded.public_id,
+        }
+      : undefined,
     status,
     address,
     notes,
@@ -49,8 +59,10 @@ export const create = catchAsync(async (req, res) => {
 });
 
 //* update
+
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
+  const file = req.file;
 
   const existingStaff = await Staff.findById(id);
 
@@ -58,37 +70,26 @@ export const update = catchAsync(async (req, res) => {
     throw new AppError("Staff not found", 404);
   }
 
-  const allowedFields = [
-    "full_name",
-    "employee_id",
-    "department",
-    "position",
-    "phone",
-    "email",
-    "joining_date",
-    "monthly_salary",
-    "profile_image",
-    "status",
-    "address",
-    "notes",
-  ];
+  const uploaded = file ? await upload(file) : null;
 
-  const updates: any = {};
-
-  allowedFields.forEach((field) => {
-    if (req.body[field] !== undefined) {
-      updates[field] = req.body[field];
-    }
-  });
-
-  const updatedStaff = await Staff.findByIdAndUpdate(
-    id,
-    { $set: updates },
+  const updatedStaff = await Staff.findOneAndUpdate(
+    { _id: id },
+    {
+      $set: {
+        ...req.body,
+        ...(uploaded && {
+          profile_image: {
+            path: uploaded.path,
+            public_id: uploaded.public_id,
+          },
+        }),
+      },
+    },
     { new: true, runValidators: true },
   );
 
   sendResponse(res, {
-    message: `Staff:${id} updated successfully`,
+    message: "Staff updated successfully",
     statusCode: 200,
     data: updatedStaff,
   });
@@ -174,6 +175,10 @@ export const remove = catchAsync(async (req, res) => {
 
   if (!staff) {
     throw new AppError("Staff not found", 404);
+  }
+
+  if (staff.profile_image?.public_id) {
+    await deleteFile(staff.profile_image.public_id);
   }
 
   sendResponse(res, {

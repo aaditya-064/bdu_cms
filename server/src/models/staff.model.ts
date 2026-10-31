@@ -7,9 +7,12 @@ export interface IStaff extends Document {
   department: String;
   position: String;
   phone: Number;
-  profile_image: {};
+  profile_image?: {
+    path: string;
+    public_id: string;
+  };
   email: String;
-  joining_date: Date;
+  joining_date: String;
   monthly_salary: Number;
   status: String;
   address: String;
@@ -52,7 +55,7 @@ const staffSchema = new Schema<IStaff>({
   },
   // joining date
   joining_date: {
-    type: Date,
+    type: String,
     required: [true, "Joining Date is required"],
   },
   // monthly salary

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import ImageSchema from "./image.model";
 
 //* file schema
 const fileSchema = new mongoose.Schema(
@@ -10,62 +11,15 @@ const fileSchema = new mongoose.Schema(
       maxLength: [255, "file name cannot exceed 255 characters"],
     },
 
-    originalName: {
-      type: String,
-      required: [true, "original file name is required"],
-      trim: true,
-    },
-
-    // Folder containing the file
     parentFolder: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "folder",
+      ref: "Folder",
       default: null,
     },
 
-    mimeType: {
-      type: String,
-      required: [true, "file MIME type is required"],
-      trim: true,
-    },
-
-    extension: {
-      type: String,
-      trim: true,
-      lowercase: true,
-    },
-
-    size: {
-      type: Number,
-      required: [true, "file size is required"],
-      min: [0, "file size cannot be negative"],
-    },
-
-    // Cloudinary storage information
-    storageProvider: {
-      type: String,
-      enum: ["cloudinary"],
-      default: "cloudinary",
-      required: true,
-    },
-
-    publicId: {
-      type: String,
-      required: [true, "Cloudinary public ID is required"],
-      trim: true,
-    },
-
-    resourceType: {
-      type: String,
-      enum: ["image", "video", "raw"],
-      default: "raw",
-    },
-
-    // Optional URL; use authenticated delivery or signed URLs
-    // when files are private.
-    url: {
-      type: String,
-      trim: true,
+    file: {
+      type: ImageSchema,
+      required: [true, "file is required"],
     },
 
     uploadedBy: {
@@ -79,7 +33,6 @@ const fileSchema = new mongoose.Schema(
       ref: "User",
     },
 
-    // Soft delete
     deletedAt: {
       type: Date,
       default: null,
@@ -90,7 +43,7 @@ const fileSchema = new mongoose.Schema(
 
 //* file indexes
 fileSchema.index({ parentFolder: 1, name: 1 });
-fileSchema.index({ publicId: 1 }, { unique: true });
+fileSchema.index({ "file.public_id": 1 }, { unique: true });
 
 //* file model
 const File = mongoose.model("file", fileSchema);

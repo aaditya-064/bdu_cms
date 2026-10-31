@@ -2,35 +2,44 @@ import { sendResponse } from "../utils/sendResponse.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
 import AppError from "../utils/appError.utils";
 import File from "../models/file.model";
+import Folder from "../models/folder.model";
 import { upload } from "../utils/cloudinary.utils";
-import path from "path";
 
 //* create
+
 export const create = catchAsync(async (req, res) => {
-  const file = req.file;
   const { name, parentFolder } = req.body;
+  const file = req.file;
 
   if (!file) {
     throw new AppError("File is required", 400);
   }
 
-  const uploaded = await upload(file);
+  if (parentFolder) {
+    const folder = await Folder.findOne({
+      _id: parentFolder,
+      deletedAt: null,
+    });
+
+    if (!folder) {
+      throw new AppError("Parent folder not found", 404);
+    }
+  }
+
+  const { path, public_id } = await upload(file);
 
   const newFile = await File.create({
     name: name || file.originalname,
-    originalName: file.originalname,
     parentFolder: parentFolder || null,
-    mimeType: file.mimetype,
-    extension: path.extname(file.originalname).slice(1),
-    size: file.size,
-    publicId: uploaded.public_id,
-    resourceType: "image",
-    url: uploaded.path,
+    file: {
+      path,
+      public_id,
+    },
     uploadedBy: req.user._id,
   });
 
   sendResponse(res, {
-    message: "File uploaded successfully",
+    message: "File created successfully",
     statusCode: 201,
     data: newFile,
   });
@@ -41,21 +50,32 @@ export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { name, parentFolder } = req.body;
 
-  const file = await File.findOne({
+  const existingFile = await File.findOne({
     _id: id,
     deletedAt: null,
   });
 
-  if (!file) {
+  if (!existingFile) {
     throw new AppError("File not found", 404);
   }
 
-  const updatedFile = await File.findByIdAndUpdate(
-    id,
+  if (parentFolder) {
+    const folder = await Folder.findOne({
+      _id: parentFolder,
+      deletedAt: null,
+    });
+
+    if (!folder) {
+      throw new AppError("Parent folder not found", 404);
+    }
+  }
+
+  const updatedFile = await File.findOneAndUpdate(
+    { _id: id, deletedAt: null },
     {
       $set: {
-        ...(name !== undefined && { name }),
-        ...(parentFolder !== undefined && { parentFolder }),
+        name: name ?? existingFile.name,
+        parentFolder: parentFolder ?? existingFile.parentFolder,
         updatedBy: req.user._id,
       },
     },
@@ -63,7 +83,7 @@ export const update = catchAsync(async (req, res) => {
   );
 
   sendResponse(res, {
-    message: `File:${id} updated successfully`,
+    message: "File updated successfully",
     statusCode: 200,
     data: updatedFile,
   });
@@ -71,19 +91,15 @@ export const update = catchAsync(async (req, res) => {
 
 //* get all
 // GET /files?sortBy=date&order=desc
+// GET /files?sortBy=date&order=asc
 // GET /files?sortBy=name&order=asc
-// GET /files?sortBy=size&order=desc
+// GET /files?sortBy=name&order=desc
 // GET /files?query=report
+// GET /files?parentFolder=root
 // GET /files?parentFolder=folderId
 
 export const getAll = catchAsync(async (req, res) => {
-  const {
-    query,
-    parentFolder,
-    mimeType,
-    sortBy = "date",
-    order = "desc",
-  } = req.query;
+  const { query, parentFolder, sortBy = "date", order = "desc" } = req.query;
 
   const filter: any = {
     deletedAt: null,
@@ -100,13 +116,7 @@ export const getAll = catchAsync(async (req, res) => {
     filter.parentFolder = parentFolder === "root" ? null : parentFolder;
   }
 
-  if (mimeType) {
-    filter.mimeType = mimeType;
-  }
-
-  const sortField =
-    sortBy === "name" ? "name" : sortBy === "size" ? "size" : "createdAt";
-
+  const sortField = sortBy === "name" ? "name" : "createdAt";
   const sortOrder = order === "asc" ? 1 : -1;
 
   const files = await File.find(filter).sort({

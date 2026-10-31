@@ -26,12 +26,12 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["USER", "ADMIN", "SUPER_ADMIN"],
-      default: "USER",
+      enum: ["STAFF", "ADMIN", "DIRECTOR"],
+      default: "STAFF",
     },
     phone: {
       type: String,
-      required: false,
+      required: true,
       maxLength: [10, "phone number at most be  10  digits long"],
     },
   },

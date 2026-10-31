@@ -30,7 +30,7 @@ export const register = async (
   next: NextFunction,
 ) => {
   try {
-    const { full_name, email, password } = req.body;
+    const { full_name, email, password, phone } = req.body;
     if (!full_name || !email || !password) {
       throw Error("Full information required");
     }
@@ -39,6 +39,7 @@ export const register = async (
       full_name,
       email,
       password: hashedPassword,
+      phone,
     });
     //* send account created email
     sendEmail({
