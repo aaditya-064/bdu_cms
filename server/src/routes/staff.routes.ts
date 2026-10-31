@@ -8,7 +8,7 @@ import {
   remove,
 } from "../controller/staff.controller";
 import { authenticate } from "../middlewares/auth.middleware";
-import { Admin_Only, Admin_and_Director } from "../types/enum.types";
+import { Admin_and_Director, All_Roles } from "../types/enum.types";
 
 const router = express.Router();
 
@@ -29,18 +29,18 @@ router.get("/:id", getById);
 
 router.post(
   "/create",
-  authenticate(Admin_and_Director),
+  authenticate(All_Roles),
   upload.single("profile_image"),
   create,
 );
 
 router.patch(
   "/update/:id",
-  authenticate(Admin_Only),
+  authenticate(Admin_and_Director),
   upload.single("profile_image"),
   update,
 );
 
-router.delete("/delete/:id", authenticate(Admin_Only), remove);
+router.delete("/delete/:id", authenticate(Admin_and_Director), remove);
 
 export default router;

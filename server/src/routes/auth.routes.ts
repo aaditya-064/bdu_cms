@@ -7,10 +7,11 @@ import {
   changeProfileImage,
 } from "../controller/auth.controller";
 import { authenticate } from "../middlewares/auth.middleware";
+import { Admin_and_Director } from "../types/enum.types";
 
 const router = express.Router();
 //* register
-router.post("/register", register);
+router.post("/register", authenticate(Admin_and_Director), register);
 //* login
 router.post("/login", login);
 
