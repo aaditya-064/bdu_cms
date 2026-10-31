@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { createFolder } from "@/api/folder.api";
 import type { Folder } from "@/types/records.types";
 import { useAuth } from "@/hooks/auth.hook";
-import { canManage } from "@/utils/permissions";
+import { canCreateDocuments } from "@/utils/permissions";
 import { errorMessage } from "@/utils/api-error";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/field";
@@ -31,7 +31,7 @@ export function FolderForm({
     setPending(true);
     setError(null);
     try {
-      if (!canManage(user))
+      if (!canCreateDocuments(user))
         throw new Error("You do not have permission to create folders.");
       const name = String(data.get("name") ?? "").trim();
       if (!name) throw new Error("Please enter a folder name.");

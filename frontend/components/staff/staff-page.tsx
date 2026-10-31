@@ -9,7 +9,7 @@ import { getStaff, deleteStaff } from "@/api/staff.api";
 import { useAuth } from "@/hooks/auth.hook";
 import { useResource } from "@/hooks/resource.hook";
 import { useDebounce } from "@/hooks/debounce.hook";
-import { canManage, canEditStaff } from "@/utils/permissions";
+import { canCreateDocuments, canEditStaff } from "@/utils/permissions";
 import { dateLabel, numberLabel, initials } from "@/utils/format";
 import type { Staff } from "@/types/records.types";
 import { PageHeading } from "@/components/layout/page-heading";
@@ -71,7 +71,7 @@ export function StaffPageContent() {
         title="Staff directory"
         description="Manage your team’s employee details, departments and status."
         action={
-          canManage(user) && (
+          canCreateDocuments(user) && (
             <Button onClick={() => setEditing("new")}>
               <PlusIcon className="size-4" />
               Add staff member

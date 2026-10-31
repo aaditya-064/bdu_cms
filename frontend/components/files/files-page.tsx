@@ -15,6 +15,7 @@ import { ResourceState } from "@/components/ui/resource-state";
 import { Notice } from "@/components/ui/notice";
 import { FileForm } from "./file-form";
 import { FileTable } from "./file-table";
+import { canCreateDocuments } from "@/utils/permissions";
 
 const loadFolders = (signal: AbortSignal) =>
   getFolders({ sortBy: "name", order: "asc" }, signal);
@@ -52,7 +53,7 @@ export function FilesPageContent() {
         title="Company files"
         description="Find, upload and organise your company documents."
         action={
-          canManage(user) && (
+          canCreateDocuments(user) && (
             <Button onClick={() => setUploading(true)}>
               <ArrowUpTrayIcon className="size-4" />
               Upload file

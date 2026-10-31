@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { createFile, updateFile } from "@/api/file.api";
 import { useAuth } from "@/hooks/auth.hook";
-import { canManage } from "@/utils/permissions";
+import { canCreateDocuments } from "@/utils/permissions";
 import { errorMessage } from "@/utils/api-error";
 import type { CompanyFile, Folder } from "@/types/records.types";
 import { Dialog } from "@/components/ui/dialog";
@@ -33,7 +33,7 @@ export function FileForm({
     setPending(true);
     setError(null);
     try {
-      if (!canManage(user))
+      if (!canCreateDocuments(user))
         throw new Error("You do not have permission to save files.");
       const name = String(data.get("name") ?? "").trim();
       const destination = String(data.get("parentFolder") ?? "");

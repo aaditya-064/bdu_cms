@@ -5,7 +5,6 @@ import { getFolders } from "@/api/folder.api";
 import { useAuth } from "@/hooks/auth.hook";
 import { useResource } from "@/hooks/resource.hook";
 import { useDebounce } from "@/hooks/debounce.hook";
-import { canManage } from "@/utils/permissions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +13,7 @@ import { Notice } from "@/components/ui/notice";
 import { ResourceState } from "@/components/ui/resource-state";
 import { FolderList } from "./folder-list";
 import { FolderForm } from "./folder-form";
+import { canCreateDocuments } from "@/utils/permissions";
 
 const loadAllFolders = (signal: AbortSignal) =>
   getFolders({ sortBy: "name", order: "asc" }, signal);
@@ -55,7 +55,7 @@ export function FoldersPageContent() {
         title="Folders"
         description="Organise company documents into folders and categories."
         action={
-          canManage(user) && (
+          canCreateDocuments(user) && (
             <Button onClick={() => setCreating(true)}>
               <FolderPlusIcon className="size-4" />
               Create folder
