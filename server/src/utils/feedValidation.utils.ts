@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PRODUCT_GROUPS } from "../types/feed.types";
+import { PRODUCTS } from "../types/feed.types";
 
 const decimalString = (places: number, max: number) =>
   z
@@ -135,7 +135,7 @@ export const formulationInput = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    const products: readonly string[] = PRODUCT_GROUPS[value.group].products;
+    const products: readonly string[] = PRODUCTS[value.group];
 
     const seen = new Set<string>();
 
