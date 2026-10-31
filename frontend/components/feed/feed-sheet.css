@@ -1,0 +1,170 @@
+.feed-paper {
+  background: white;
+  color: black;
+  border: 1px solid #94a3b8;
+  padding: 0;
+}
+.profit-paper {
+  min-width: 1050px;
+}
+.batch-paper {
+  width: 100%;
+  min-width: 540px;
+  max-width: 760px;
+}
+.sheet-band {
+  background: #00b0df;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.sheet-band span {
+  float: right;
+  text-transform: capitalize;
+}
+.excel-sheet {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+}
+.excel-sheet th,
+.excel-sheet td {
+  border: 1px solid #202020;
+  padding: 5px 4px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.excel-sheet th {
+  text-align: left;
+}
+.excel-sheet td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.excel-sheet .sheet-name {
+  text-align: left;
+  color: #e00000;
+  font-weight: 600;
+}
+.sheet-yellow {
+  background: #ffff00;
+  font-weight: bold;
+}
+.sheet-price {
+  background: #8db4e2;
+}
+.sheet-amount {
+  background: #e6b8b7;
+}
+.sheet-blue {
+  background: #4f81bd;
+  color: white;
+}
+.sheet-green {
+  background: #00b050;
+}
+.sheet-lime {
+  background: #92d050;
+  font-weight: bold;
+}
+.analysis-label {
+  background: #ff0000;
+  color: black;
+  font-weight: bold;
+  text-align: left !important;
+}
+.analysis-value {
+  background: #e87500;
+  color: #002060;
+  font-weight: bold;
+}
+.sales-label,
+.sales-value {
+  background: #7030a0;
+  color: #ffe080;
+  font-weight: bold;
+}
+.profit-label {
+  background: #ff0000;
+  color: #ffff00;
+  font-weight: bold;
+}
+.batch-number {
+  font-size: 15px;
+  font-weight: bold;
+}
+.sheet-note {
+  font:
+    11px/1.5 Arial,
+    sans-serif;
+  padding: 8px;
+  margin: 0;
+}
+.feed-preview {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.feed-preview th,
+.feed-preview td {
+  padding: 10px;
+  border: 1px solid #e5e9ee;
+  text-align: right;
+}
+.feed-preview th:first-child,
+.feed-preview td:first-child {
+  text-align: left;
+}
+.feed-preview th {
+  background: #e7eee9;
+}
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  body:has(#feed-print) {
+    background: white;
+  }
+  body:has(#feed-print) header,
+  body:has(#feed-print) aside,
+  body:has(#feed-print) footer,
+  body:has(#feed-print) .feed-controls {
+    display: none !important;
+  }
+  body:has(#feed-print) #main-content {
+    padding: 0 !important;
+    max-width: none;
+  }
+  body:has(#feed-print) .lg\:pl-\[256px\],
+  body:has(#feed-print) .lg\:pl-\[80px\] {
+    padding-left: 0 !important;
+  }
+  .feed-paper {
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .feed-paper.batch-paper {
+    max-width: 190mm;
+  }
+  .feed-paper .excel-sheet {
+    font-size: 9px;
+  }
+  .feed-paper.batch-paper .excel-sheet {
+    font-size: 11px;
+  }
+  .feed-paper .excel-sheet th,
+  .feed-paper .excel-sheet td {
+    padding: 3px;
+  }
+  .feed-paper tr {
+    break-inside: avoid;
+  }
+  .feed-overflow {
+    overflow: visible !important;
+  }
+}
