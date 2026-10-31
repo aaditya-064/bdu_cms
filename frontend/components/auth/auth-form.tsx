@@ -194,17 +194,17 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   {registering ? "Create account" : "Sign in"}
                   <ArrowRightIcon className="size-4" />
                 </Button>
-                <p className="text-center text-xs leading-6 text-muted">
+                {/* <p className="text-center text-xs leading-6 text-muted">
                   {registering
                     ? "Already have an account?"
                     : "Need an account?"}{" "}
                   <Link
-                    href={registering ? "/login" : "/register"}
+                    href={registering ? "/login" : "/registerrr"}
                     className="font-semibold text-primary hover:underline"
                   >
                     {registering ? "Sign in" : "Create account"}
                   </Link>
-                </p>
+                </p> */}
               </fieldset>
             </form>
           )}
