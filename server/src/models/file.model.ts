@@ -22,6 +22,11 @@ const fileSchema = new mongoose.Schema(
       required: [true, "file is required"],
     },
 
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
+
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

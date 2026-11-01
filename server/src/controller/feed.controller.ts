@@ -165,3 +165,43 @@ export const getBatch = catchAsync(async (req, res) => {
     sheets: workerSheets(recipe.sheets as Calculation[]),
   });
 });
+
+export const listProfitSheets = catchAsync(async (_req, res) => {
+  const recipes = await FeedRecipe.find({
+    publishedAt: { $ne: null },
+    "sheets.0": { $exists: true },
+  })
+    .select("title brand codes publishedAt")
+    .sort({ publishedAt: -1 })
+    .limit(100);
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Saved P/L sheets fetched",
+    data: recipes,
+  });
+});
+
+export const getProfitSheet = catchAsync(async (req, res) => {
+  const id = String(req.params.id);
+
+  if (!mongoose.isObjectIdOrHexString(id)) {
+    throw new AppError("Invalid sheet ID", 400);
+  }
+
+  const recipe = await FeedRecipe.findOne({
+    _id: id,
+    publishedAt: { $ne: null },
+    "sheets.0": { $exists: true },
+  }).select("title brand codes sheets publishedAt");
+
+  if (!recipe) {
+    throw new AppError("P/L sheet not found", 404);
+  }
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Saved P/L sheet fetched",
+    data: recipe,
+  });
+});

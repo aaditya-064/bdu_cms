@@ -3,6 +3,7 @@ import { catchAsync } from "../utils/catchAsync.utils";
 import AppError from "../utils/appError.utils";
 import Folder from "../models/folder.model";
 import File from "../models/file.model";
+import { documentScope } from "../services/document-access.service";
 
 //* create
 export const create = catchAsync(async (req, res) => {
@@ -119,7 +120,11 @@ export const getAll = catchAsync(async (req, res) => {
   const sortField = sortBy === "name" ? "name" : "createdAt";
   const sortOrder = order === "asc" ? 1 : -1;
 
-  const folders = await Folder.find(filter).sort({
+  const scope = await documentScope(req.user.role);
+
+  const folders = await Folder.find({
+    $and: [filter, scope.folderFilter],
+  }).sort({
     [sortField]: sortOrder,
   } as any);
 
@@ -134,9 +139,10 @@ export const getAll = catchAsync(async (req, res) => {
 export const getById = catchAsync(async (req, res) => {
   const { id } = req.params;
 
+  const scope = await documentScope(req.user.role);
+
   const folder = await Folder.findOne({
-    _id: id,
-    deletedAt: null,
+    $and: [{ _id: id, deletedAt: null }, scope.folderFilter],
   });
 
   if (!folder) {
@@ -144,13 +150,11 @@ export const getById = catchAsync(async (req, res) => {
   }
 
   const subfolders = await Folder.find({
-    parentFolder: id,
-    deletedAt: null,
+    $and: [{ parentFolder: id, deletedAt: null }, scope.folderFilter],
   });
 
   const files = await File.find({
-    parentFolder: id,
-    deletedAt: null,
+    $and: [{ parentFolder: id, deletedAt: null }, scope.fileFilter],
   });
 
   sendResponse(res, {
@@ -199,5 +203,34 @@ export const remove = catchAsync(async (req, res) => {
     message: `Folder:${id} deleted successfully`,
     statusCode: 200,
     data: null,
+  });
+});
+
+export const setLock = catchAsync(async (req, res) => {
+  const { isLocked } = req.body;
+
+  if (typeof isLocked !== "boolean") {
+    throw new AppError("isLocked must be true or false", 400);
+  }
+
+  const folder = await Folder.findOneAndUpdate(
+    { _id: req.params.id, deletedAt: null },
+    {
+      $set: {
+        isLocked,
+        updatedBy: req.user._id,
+      },
+    },
+    { new: true, runValidators: true },
+  );
+
+  if (!folder) {
+    throw new AppError("Folder not found", 404);
+  }
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: isLocked ? "Folder locked" : "Folder unlocked",
+    data: folder,
   });
 });

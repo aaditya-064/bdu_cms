@@ -24,6 +24,11 @@ const folderSchema = new mongoose.Schema(
       default: "General",
     },
 
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
