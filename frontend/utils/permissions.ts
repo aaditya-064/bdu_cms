@@ -2,19 +2,25 @@ import type { User } from "@/types/auth.types";
 
 type Account = Pick<User, "role"> | null | undefined;
 
-// Management-only permissions: do not expand this to USER/STAFF.
 export function canManage(user: Account) {
   return user?.role === "ADMIN" || user?.role === "DIRECTOR";
 }
 
-// Staff may upload files and create folders.
 export function canCreateDocuments(user: Account) {
-  return canManage(user) || user?.role === "STAFF";
+  return (
+    canManage(user) ||
+    user?.role === "USER" ||
+    user?.role === "STAFF" ||
+    user?.role === "DIR_SUBASH"
+  );
 }
 
-// Staff may create and edit staff directory records.
 export function canEditStaff(user: Account) {
-  return canManage(user) || user?.role === "STAFF";
+  return canCreateDocuments(user);
+}
+
+export function canViewPL(user: Account) {
+  return canManage(user) || user?.role === "DIR_SUBASH";
 }
 
 export const vaultEnabled = process.env.NEXT_PUBLIC_ENABLE_VAULT === "true";

@@ -23,6 +23,7 @@ export type CompanyFile = {
   updatedBy?: string;
   createdAt: string;
   updatedAt: string;
+  isLocked?: boolean;
 };
 export type Folder = {
   _id: string;
@@ -31,6 +32,7 @@ export type Folder = {
   parentFolder: string | null;
   createdAt: string;
   updatedAt: string;
+  isLocked?: boolean;
 };
 export type FolderContents = {
   folder: Folder;

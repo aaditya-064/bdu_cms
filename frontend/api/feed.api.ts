@@ -3,6 +3,7 @@ import type { ApiResponse } from "@/types/api.types";
 import type {
   Brand,
   Costs,
+  ProfitRecord,
   RateRecord,
   RecipeInput,
   RecipeSummary,
@@ -51,3 +52,15 @@ export const getFeedBatch = async (id: string) =>
       `/feed/batches/${encodeURIComponent(id)}`,
     )
   ).data.data;
+
+export async function listProfitSheets() {
+  return (await api.get<ApiResponse<RecipeSummary[]>>("/feed/pl")).data.data;
+}
+
+export async function getProfitSheet(id: string) {
+  return (
+    await api.get<ApiResponse<ProfitRecord>>(
+      `/feed/pl/${encodeURIComponent(id)}`,
+    )
+  ).data.data;
+}

@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Pagination, PAGE_SIZE } from "@/components/ui/pagination";
 import { FileForm } from "./file-form";
+import { DocumentLockButton } from "./document-lock-button";
 
 export function FileTable({
   files,
@@ -121,6 +122,12 @@ export function FileTable({
                         </button>
                       </>
                     )}
+                    <DocumentLockButton
+                      kind="file"
+                      id={file._id}
+                      locked={file.isLocked === true}
+                      onChanged={onChanged}
+                    />
                   </div>
                 </td>
               </tr>

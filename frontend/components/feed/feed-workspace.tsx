@@ -15,13 +15,16 @@ import { Notice } from "@/components/ui/notice";
 import { errorMessage } from "@/utils/api-error";
 import "./feed-sheet.css";
 import { canManage, vaultEnabled } from "@/utils/permissions";
+import { FeedPLViewer } from "./feed-pl-viewer";
 
 export function FeedWorkspace() {
   const { user, status } = useAuth();
   const [selected, setSelected] = useState("");
   if (status !== "authenticated") return <p>Checking your session…</p>;
   const role = user?.role;
-  if (!["DIRECTOR", "ADMIN", "USER", "STAFF"].includes(role ?? ""))
+  if (
+    !["DIRECTOR", "ADMIN", "USER", "STAFF", "DIR_SUBASH"].includes(role ?? "")
+  )
     return <Card className="p-6">Access denied.</Card>;
   const tabs = [
     ...(role === "DIRECTOR"
@@ -30,6 +33,7 @@ export function FeedWorkspace() {
     ...(["DIRECTOR", "ADMIN"].includes(role ?? "")
       ? [{ id: "rates", label: "Ingredient rates" }]
       : []),
+    ...(role === "DIR_SUBASH" ? [{ id: "pl", label: "P/L sheets" }] : []),
     { id: "batches", label: "Worker batch sheets" },
   ];
   const current = tabs.some((tab) => tab.id === selected)
@@ -60,6 +64,9 @@ export function FeedWorkspace() {
         <FeedRates />
       )}
       {current === "batches" && <Batches />}
+      {current === "pl" && (role === "DIR_SUBASH" || role === "ADMIN") && (
+        <FeedPLViewer />
+      )}
     </div>
   );
 }

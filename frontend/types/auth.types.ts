@@ -1,4 +1,10 @@
-export type Role = "USER" | "ADMIN" | "SUPER_ADMIN" | "STAFF" | "DIRECTOR";
+export type Role =
+  | "USER"
+  | "ADMIN"
+  | "SUPER_ADMIN"
+  | "STAFF"
+  | "DIRECTOR"
+  | "DIR_SUBASH";
 export type User = {
   _id: string;
   full_name: string;

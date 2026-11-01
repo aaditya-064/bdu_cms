@@ -17,7 +17,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { useWorkspace } from "@/hooks/workspace.hook";
 import { useAuth } from "@/hooks/auth.hook";
-import { canManage, vaultEnabled } from "@/utils/permissions";
+import {
+  canManage,
+  vaultEnabled,
+  canCreateDocuments,
+} from "@/utils/permissions";
 import { workspaceNavigation, accountNavigation } from "./navigation";
 import { BrandMark } from "./brand";
 import { cn } from "@/utils/classes";
@@ -124,9 +128,8 @@ function SidebarContent({
           {workspaceNavigation
             .filter(
               (item) =>
-                (item.href !== "/feed" || (vaultEnabled && canManage(user))) &&
-                (!["/formulations", "/ingredient-rates"].includes(item.href) ||
-                  canManage(user)),
+                item.href !== "/feed" ||
+                (vaultEnabled && canCreateDocuments(user)),
             )
             .map(navigationLink)}
         </nav>

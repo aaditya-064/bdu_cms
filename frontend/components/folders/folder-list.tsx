@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Pagination, PAGE_SIZE } from "@/components/ui/pagination";
+import { DocumentLockButton } from "../files/document-lock-button";
 
 export function FolderList({
   folders,
@@ -90,6 +91,12 @@ export function FolderList({
                       Delete
                     </button>
                   )}
+                  <DocumentLockButton
+                    kind="folder"
+                    id={folder._id}
+                    locked={folder.isLocked === true}
+                    onChanged={onChanged}
+                  />
                 </div>
               </td>
             </tr>

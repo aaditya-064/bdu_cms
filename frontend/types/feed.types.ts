@@ -94,3 +94,12 @@ export type RecipeSummary = {
   codes: string[];
   publishedAt?: string;
 };
+
+export type ProfitRecord = {
+  _id: string;
+  title: string;
+  brand: Brand;
+  codes: string[];
+  publishedAt: string;
+  sheets: Calculation[];
+};
