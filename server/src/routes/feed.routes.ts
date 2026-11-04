@@ -34,10 +34,10 @@ router.get("/pl", allow(...viewers), feed.listProfitSheets);
 router.get("/pl/:id/excel", allow("ADMIN", "DIRECTOR"), feed.exportProfitExcel);
 router.get("/pl/:id", allow(...viewers), feed.getProfitSheet);
 
-router.get("/settings", allow(...management), feed.getSettings);
-router.patch("/settings", allow(...management), feed.setSettings);
-router.get("/rates", allow(...management), feed.getRates);
-router.patch("/rates", allow(...management), feed.setRates);
+router.get("/settings", allow(...viewers), feed.getSettings);
+router.patch("/settings", allow(...viewers), feed.setSettings);
+router.get("/rates", allow(...viewers), feed.getRates);
+router.patch("/rates", allow(...viewers), feed.setRates);
 
 // Preserve the supplied backend's Director-only formulation editing.
 router.get("/recipes", allow("DIRECTOR"), feed.listRecipes);
