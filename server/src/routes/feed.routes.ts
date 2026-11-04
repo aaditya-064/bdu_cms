@@ -7,41 +7,42 @@ import * as feed from "../controller/feed.controller";
 
 const router = express.Router();
 router.use(authenticate());
-// Check the current database role, including after an account role is changed.
+router.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  next();
+});
+
+// Read the current account role; do not trust an old role inside a login token.
 const allow = (...roles: string[]) =>
   catchAsync(async (req, _res, next) => {
     const user = await User.findById(req.user._id).select("role");
-    if (!user || !roles.includes(user.role))
+    if (!user || !roles.includes(user.role)) {
       throw new AppError("Access denied", 403);
+    }
     next();
   });
-router.get(
-  "/batches",
-  allow("DIRECTOR", "ADMIN", "STAFF", "DIR_SUBASH"),
-  feed.listBatches,
-);
-router.get(
-  "/batches/:id",
-  allow("DIRECTOR", "ADMIN", "USER", "STAFF", "DIR_SUBASH"),
-  feed.getBatch,
-);
-router.get("/settings", allow("DIRECTOR", "ADMIN"), feed.getSettings);
-router.patch("/settings", allow("DIRECTOR", "ADMIN"), feed.setSettings);
-router.get("/rates", allow("DIRECTOR", "ADMIN"), feed.getRates);
-router.patch("/rates", allow("DIRECTOR", "ADMIN"), feed.setRates);
+
+const staff = ["DIRECTOR", "ADMIN", "DIR_SUBASH", "USER", "STAFF"];
+const management = ["DIRECTOR", "ADMIN"];
+const viewers = ["DIRECTOR", "ADMIN", "DIR_SUBASH"];
+
+router.get("/batches", allow(...staff), feed.listBatches);
+router.get("/batches/:id/excel", allow(...management), feed.exportBatchExcel);
+router.get("/batches/:id", allow(...staff), feed.getBatch);
+
+router.get("/pl", allow(...viewers), feed.listProfitSheets);
+router.get("/pl/:id/excel", allow("ADMIN", "DIRECTOR"), feed.exportProfitExcel);
+router.get("/pl/:id", allow(...viewers), feed.getProfitSheet);
+
+router.get("/settings", allow(...management), feed.getSettings);
+router.patch("/settings", allow(...management), feed.setSettings);
+router.get("/rates", allow(...management), feed.getRates);
+router.patch("/rates", allow(...management), feed.setRates);
+
+// Preserve the supplied backend's Director-only formulation editing.
 router.get("/recipes", allow("DIRECTOR"), feed.listRecipes);
 router.post("/recipes", allow("DIRECTOR"), feed.createRecipe);
 router.get("/recipes/:id", allow("DIRECTOR"), feed.getRecipe);
 router.post("/recipes/:id/calculate", allow("DIRECTOR"), feed.saveCalculation);
-router.get(
-  "/pl",
-  allow("ADMIN", "DIRECTOR", "DIR_SUBASH"),
-  feed.listProfitSheets,
-);
 
-router.get(
-  "/pl/:id",
-  allow("ADMIN", "DIRECTOR", "DIR_SUBASH"),
-  feed.getProfitSheet,
-);
 export default router;

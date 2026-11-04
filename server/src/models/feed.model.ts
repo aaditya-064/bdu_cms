@@ -22,10 +22,20 @@ const recipeSchema = new mongoose.Schema(
     title: { type: String, required: true },
     brand: { type: String, required: true },
     codes: [String],
-    rows: [{ name: String, kind: String, quantities: [Number], _id: false }],
+    rows: [
+      {
+        name: String,
+        kind: String,
+        quantities: [Number],
+        unit: { type: String, enum: ["kg", "g"] },
+        rateId: { type: mongoose.Schema.Types.ObjectId, ref: "FeedBrandRate" },
+        _id: false,
+      },
+    ],
     // Snapshot from the server calculation. Never return this field to workers.
     sheets: { type: [mongoose.Schema.Types.Mixed], default: [] },
     publishedAt: Date,
+    recalculatedAt: Date,
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true },

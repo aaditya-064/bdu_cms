@@ -5,6 +5,8 @@ import {
   Rate,
   RecipeInput,
   keyOf,
+  toKg,
+  CostRow,
 } from "../types/feed.types";
 import AppError from "../utils/appError.utils";
 
@@ -52,7 +54,9 @@ export function validateRecipe(data: RecipeInput) {
       !["ingredient", "additive"].includes(row.kind)
     )
       fail("Invalid ingredient row");
-    const key = `${row.kind}:${keyOf(row.name)}`;
+    if (row.unit !== undefined && !["kg", "g"].includes(row.unit ?? ""))
+      fail(`Invalid saved unit for ${row.name}`);
+    const key = keyOf(row.name);
     if (seen.has(key)) fail(`Duplicate ingredient: ${row.name}`);
     seen.add(key);
     if (
@@ -80,6 +84,7 @@ export function validateCosts(raw: Costs): Costs {
       "commission",
     ].map((key) => [key, number(raw[key as keyof Costs], key)]),
   ) as Costs;
+  costs.firewood = number(raw.firewood ?? 0, "firewood");
   if (!Number.isInteger(costs.bags))
     fail("Number of bags must be a whole number");
   if (costs.commission > costs.pricePerTon)
@@ -97,19 +102,25 @@ export function calculate(
   return recipe.codes.map((code, column) => {
     const costs = validateCosts(inputs?.[code]);
     const rows = recipe.rows.map((row) => {
-      const rate = rates.find(
-        (rate) => rate.kind === row.kind && rate.key === keyOf(row.name),
+      const rate = rates.find((rate) =>
+        row.rateId
+          ? String(rate._id) === String(row.rateId)
+          : rate.kind === row.kind && rate.key === keyOf(row.name),
       );
       if (!rate || rate.price === null || rate.price === undefined)
         fail(`Set the rate for ${row.name} in ${recipe.brand}`);
       const price = number(rate!.price, `rate for ${row.name}`);
       const quantity = row.quantities[column];
+      const unit = row.unit ?? (row.kind === "additive" ? "g" : "kg");
+      const quantityKg = toKg(quantity, unit);
       return {
         name: row.name,
         kind: row.kind,
         quantity,
+        unit,
+        quantityKg,
         price,
-        amount: (quantity * price) / (row.kind === "additive" ? 1000 : 1),
+        amount: quantityKg * price,
         rateDate: rate!.changedAt ?? null,
       };
     });
@@ -119,12 +130,10 @@ export function calculate(
     const additives = rows
       .filter((r) => r.kind === "additive")
       .map(({ kind, ...row }) => row);
-    const sum = (
-      list: typeof ingredients,
-      key: "quantity" | "price" | "amount",
-    ) => list.reduce((total, row) => total + row[key], 0);
-    const ingredientKg = sum(ingredients, "quantity"),
-      additiveGrams = sum(additives, "quantity");
+    const sum = (list: typeof ingredients, key: "quantityKg" | "amount") =>
+      list.reduce((total, row) => total + row[key], 0);
+    const ingredientKg = sum(ingredients, "quantityKg"),
+      additiveKg = sum(additives, "quantityKg");
     const ingredientAmount = sum(ingredients, "amount"),
       additiveAmount = sum(additives, "amount");
     const bagAmount = costs.bags * bagPrice;
@@ -136,56 +145,151 @@ export function calculate(
       costs.overhead +
       costs.utility +
       costs.freight +
-      costs.labour;
+      costs.labour +
+      (costs.firewood ?? 0);
     // Mirrors the supplied sheet: nominal recipe = one ton, no silent normalization.
     const costPerTon = grandTotal;
     const salesPerTon = costs.pricePerTon - costs.commission;
     return {
       code,
+      formatVersion: 2,
       ingredients,
       additives,
       inputs: costs,
       bagPrice,
-      ingredientKg: round(ingredientKg),
-      additiveGrams: round(additiveGrams),
-      ingredientPrices: round(sum(ingredients, "price")),
-      additivePrices: round(sum(additives, "price")),
-      ingredientAmount: round(ingredientAmount),
-      additiveAmount: round(additiveAmount),
-      bagAmount: round(bagAmount),
-      recipeKg: round(ingredientKg + additiveGrams / 1000),
-      totalCost: round(totalCost),
-      goodsLoss: round(goodsLoss),
-      grandTotal: round(grandTotal),
-      costPerTon: round(costPerTon),
-      salesPerTon: round(salesPerTon),
-      profitPerTon: round(salesPerTon - costPerTon),
+      ingredientKg: ingredientKg,
+      additiveGrams: additiveKg * 1000,
+      additiveKg,
+      ingredientAmount: ingredientAmount,
+      additiveAmount: additiveAmount,
+      bagAmount: bagAmount,
+      recipeKg: ingredientKg + additiveKg,
+      totalCost: totalCost,
+      goodsLoss: goodsLoss,
+      grandTotal: grandTotal,
+      costPerTon: costPerTon,
+      salesPerTon: salesPerTon,
+      profitPerTon: salesPerTon - costPerTon,
     };
   });
 }
-// Explicit whitelist: no rate, revenue, cost or P/L fields reach worker responses.
+// Old snapshots used kg for ingredients and grams for additives.
+export function savedQuantityKg(row: CostRow, additive: boolean) {
+  return (
+    row.quantityKg ?? toKg(row.quantity, row.unit ?? (additive ? "g" : "kg"))
+  );
+}
+
+// Medicines entered under Ingredients are still kg. Only their worker-sheet
+// position changes. Add another exact name here if you introduce a medicine.
+const workerMedicineNames = new Set([
+  "methionine",
+  "lysine",
+  "technozyme500gm",
+  "technozyme500g",
+  "technozymemulti",
+  "sodabicarbonate",
+  "threonine",
+  "theronine",
+]);
+const isWorkerMedicine = (name: string) =>
+  workerMedicineNames.has(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+// Explicit whitelist: no prices, rates, costs or profits in worker responses.
 export function workerSheets(sheets: Calculation[]) {
-  return sheets.map((sheet) => {
-    const ingredients = sheet.ingredients.map((row) => ({
-      name: row.name,
-      batchKg: round(row.quantity * 0.8),
-    }));
-    const additives = sheet.additives.map((row) => ({
-      name: row.name,
-      one: round((row.quantity / 1000) * 0.8),
-      five: round((row.quantity / 1000) * 4),
-      ten: round((row.quantity / 1000) * 8),
-    }));
-    const additiveOne = round((sheet.additiveGrams / 1000) * 0.8);
+  return sheets.map((saved) => {
+    const sheet = formatProfitSheet(saved);
+
+    // Exactly the middle ingredients table from P/L.
+    const ingredients = sheet.ingredients.map((row) => {
+      const referenceKg = row.quantityKg!;
+
+      return {
+        name: row.name,
+        referenceKg,
+        batchKg: referenceKg * 0.8,
+      };
+    });
+
+    // Exactly the left additives table from P/L.
+    const additives = sheet.additives.map((row) => {
+      const referenceKg = row.quantityKg!;
+      const one = referenceKg * 0.8;
+
+      return {
+        name: row.name,
+        referenceKg,
+        one,
+        five: one * 5,
+        ten: one * 10,
+      };
+    });
+
+    const ingredientReference = sheet.ingredientKg;
+    const additiveReference = sheet.additiveKg!;
+    const additiveOne = additiveReference * 0.8;
+
+    // Workers receive quantities only.
     return {
       code: sheet.code,
       ingredients,
       additives,
-      ingredientTotal: round(sheet.ingredientKg * 0.8),
+      ingredientReference,
+      additiveReference,
+      referenceKg: ingredientReference + additiveReference,
+      ingredientTotal: ingredientReference * 0.8,
       additiveOne,
-      additiveFive: round(additiveOne * 5),
-      additiveTen: round(additiveOne * 10),
-      fullBatchKg: round(sheet.recipeKg * 0.8),
+      additiveFive: additiveOne * 5,
+      additiveTen: additiveOne * 10,
+      fullBatchKg: (ingredientReference + additiveReference) * 0.8,
     };
   });
+}
+
+// One grouping used by the P/L screen, P/L Excel and worker sheets.
+export function formatProfitSheet(sheet: Calculation): Calculation {
+  const normalize = (row: CostRow, fromAdditives: boolean): CostRow => {
+    const quantityKg = savedQuantityKg(row, fromAdditives);
+
+    return {
+      ...row,
+      quantity: quantityKg,
+      quantityKg,
+      unit: "kg",
+    };
+  };
+
+  // Middle P/L table: bulk ingredients only.
+  const ingredients = sheet.ingredients
+    .filter((row) => !isWorkerMedicine(row.name))
+    .map((row) => normalize(row, false));
+
+  // Left P/L table: kg medicines followed by original gram additives.
+  const additives = [
+    ...sheet.ingredients
+      .filter((row) => isWorkerMedicine(row.name))
+      .map((row) => normalize(row, false)),
+    ...sheet.additives.map((row) => normalize(row, true)),
+  ];
+
+  const quantity = (rows: CostRow[]) =>
+    rows.reduce((total, row) => total + row.quantityKg!, 0);
+
+  const amount = (rows: CostRow[]) =>
+    rows.reduce((total, row) => total + row.amount, 0);
+
+  const ingredientKg = quantity(ingredients);
+  const additiveKg = quantity(additives);
+
+  return {
+    ...sheet,
+    ingredients,
+    additives,
+    ingredientKg,
+    additiveKg,
+    additiveGrams: additiveKg * 1000,
+    ingredientAmount: amount(ingredients),
+    additiveAmount: amount(additives),
+    recipeKg: ingredientKg + additiveKg,
+  };
 }
