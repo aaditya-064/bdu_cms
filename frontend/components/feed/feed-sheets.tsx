@@ -1,263 +1,257 @@
 "use client";
-import type { Calculation, WorkerSheet } from "@/types/feed.types";
-const n = (value: number) =>
-  value.toLocaleString("en-US", { maximumFractionDigits: 6 });
+import { useAuth } from "@/hooks/auth.hook";
+import type { Calculation, CostRow, WorkerSheet } from "@/types/feed.types";
+import { toKg } from "@/types/feed.types";
+
+const n = (value: number, places = 2) =>
+  value.toLocaleString("en-US", {
+    minimumFractionDigits: places,
+    maximumFractionDigits: places,
+  });
+const kg = (row: CostRow, additive: boolean) =>
+  row.quantityKg ?? toKg(row.quantity, row.unit ?? (additive ? "g" : "kg"));
+const dateText = (date?: string) =>
+  date ? new Date(date).toLocaleDateString("en-GB") : "";
 
 export function ProfitSheet({
   sheet: s,
   brand,
+  publishedAt,
 }: {
   sheet: Calculation;
   brand: string;
+  publishedAt?: string;
 }) {
-  const analysis: [string, number][] = [
-    ["TOTAL COST", s.totalCost],
-    ["GOODS LOSS 2%", s.goodsLoss],
-    ["UTILITY", s.inputs.utility],
-    ["FREIGHT", s.inputs.freight],
-    ["OVERHEAD COST", s.inputs.overhead],
-    ["LABOUR COST", s.inputs.labour],
-    ["GRAND TOTAL", s.grandTotal],
-    ["PRICE/TON", s.inputs.pricePerTon],
-    ["COMMISSION", s.inputs.commission],
-    ["SALES/TON", s.salesPerTon],
-    ["COST/TON", s.costPerTon],
-    ["P/L PER TON", s.profitPerTon],
+  const additiveKg = s.additiveKg ?? s.additiveGrams / 1000;
+  const analysis: [string, number, string][] = [
+    ["TOTAL COST OF RM", s.totalCost, "gold"],
+    ["GOODS LOSS 2%", s.goodsLoss, "expense"],
+    ["UTILITY", s.inputs.utility, "expense"],
+    ["MANUFACTURE COST", s.inputs.labour, "expense"],
+    ["OVERHEAD COST", s.inputs.overhead, "expense"],
+    ["FIRE WOOD (STEAM SECTION)", s.inputs.firewood ?? 0, "expense"],
+    ["FREIGHT", s.inputs.freight, "expense"],
+    ["COST OF GOODS SALES", s.costPerTon, "cost"],
+    ["SALES PRICE/TON (GROSS)", s.inputs.pricePerTon, "gross"],
+    ["COMMISSION", s.inputs.commission, "sales"],
+    ["SALES PRICE/TON (NET)", s.salesPerTon, "cost"],
+    ["COST OF GOODS SALES", s.costPerTon, "gold"],
+    ["P/L PER TON", s.profitPerTon, "profit"],
   ];
-  const length = Math.max(
-    s.ingredients.length,
-    s.additives.length + 3,
-    analysis.length,
+  const rows = (items: CostRow[], additive: boolean) =>
+    items.map((r, i) => (
+      <tr key={i}>
+        <td className="sheet-name">{r.name}</td>
+        <td className="sheet-yellow">{n(kg(r, additive), additive ? 3 : 2)}</td>
+        <td className="sheet-price">{n(r.price)}</td>
+        <td className="sheet-amount">{n(r.amount)}</td>
+      </tr>
+    ));
+  const columns = (
+    <colgroup>
+      <col style={{ width: "48%" }} />
+      <col style={{ width: "18%" }} />
+      <col style={{ width: "14%" }} />
+      <col style={{ width: "20%" }} />
+    </colgroup>
   );
   return (
-    <div id="feed-print" className="feed-paper profit-paper">
+    <article className="feed-paper profit-paper feed-print">
       <div className="sheet-band">
-        {s.code} <span>{brand} · P/L calculation</span>
+        <b>{s.code}</b>
+        <span>{brand.toUpperCase()}</span>
       </div>
-      <table className="excel-sheet profit-sheet">
-        <colgroup>
-          <col style={{ width: "17%" }} />
-          <col />
-          <col />
-          <col />
-          <col style={{ width: "22%" }} />
-          <col />
-          <col />
-          <col />
-          <col style={{ width: "13%" }} />
-          <col />
-        </colgroup>
-        <thead>
-          <tr className="sheet-blue">
-            <th>Ingredients</th>
-            <th>KG</th>
-            <th>PRICE</th>
-            <th>AMOUNT</th>
-            <th colSpan={4}>FEEDS ADDITIVES</th>
-            <th colSpan={2}>P/L ANALYSIS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length }, (_, i) => {
-            const a = s.ingredients[i],
-              b = s.additives[i - 1],
-              p = analysis[i];
-            return (
-              <tr key={i}>
-                <td className="sheet-name">{a?.name ?? ""}</td>
-                <td className="sheet-yellow">{a ? n(a.quantity) : ""}</td>
-                <td className="sheet-price">{a ? n(a.price) : ""}</td>
-                <td className="sheet-amount">{a ? n(a.amount) : ""}</td>
-                {i === 0 ? (
-                  <>
-                    <th className="sheet-green">Additives</th>
-                    <th className="sheet-green">GRAM</th>
-                    <th className="sheet-green">PRICE</th>
-                    <th className="sheet-green">AMOUNT</th>
-                  </>
-                ) : b ? (
-                  <>
-                    <td className="sheet-name">{b.name}</td>
-                    <td className="sheet-yellow">{n(b.quantity)}</td>
-                    <td className="sheet-price">{n(b.price)}</td>
-                    <td className="sheet-amount">{n(b.amount)}</td>
-                  </>
-                ) : i === s.additives.length + 1 ? (
-                  <>
-                    <td className="sheet-amount sheet-name">Total (B)</td>
-                    <td className="sheet-lime">{n(s.additiveGrams)}</td>
-                    <td className="sheet-lime" />
-                    <td className="sheet-lime">{n(s.additiveAmount)}</td>
-                  </>
-                ) : i === s.additives.length + 2 ? (
-                  <>
-                    <td className="sheet-name">Bags (C)</td>
-                    <td className="sheet-yellow">{s.inputs.bags} PCS</td>
-                    <td className="sheet-price">{n(s.bagPrice)}</td>
-                    <td className="sheet-amount">{n(s.bagAmount)}</td>
-                  </>
-                ) : (
-                  <>
-                    <td />
-                    <td />
-                    <td />
-                    <td />
-                  </>
-                )}
-                <td
-                  className={
-                    i < 7
-                      ? "analysis-label"
-                      : i === 11
-                        ? "profit-label"
-                        : "sales-label"
-                  }
-                >
-                  {p?.[0]}
-                </td>
-                <td
-                  className={
-                    i < 7
-                      ? "analysis-value"
-                      : i === 11
-                        ? "profit-label"
-                        : "sales-value"
-                  }
-                >
-                  {p ? n(p[1]) : ""}
-                </td>
+      <div className="profit-grid">
+        <table
+          className="excel-sheet"
+          aria-label="Ingredients and additives costs"
+        >
+          {columns}
+          <thead>
+            <tr className="sheet-green">
+              <th>Ingredients/ADDITIVES</th>
+              <th>KG</th>
+              <th>PRICE</th>
+              <th>AMOUNT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows(s.additives, true)}
+            <tr className="sheet-total">
+              <th>Total (A)</th>
+              <td>{n(additiveKg)}</td>
+              <td />
+              <td>{n(s.additiveAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div>
+          <table className="excel-sheet" aria-label="Ingredient and bag costs">
+            {columns}
+            <thead>
+              <tr className="sheet-blue">
+                <th>Ingredients</th>
+                <th>KG</th>
+                <th>PRICE</th>
+                <th>AMOUNT</th>
               </tr>
-            );
-          })}
-          <tr>
-            <th className="sheet-amount">Total (A)</th>
-            <td className="sheet-yellow">{n(s.ingredientKg)}</td>
-            <td className="sheet-price" />
-            <td className="sheet-amount">{n(s.ingredientAmount)}</td>
-            <th className="sheet-amount">Total (A+B+C)</th>
-            <td className="sheet-lime">{n(s.recipeKg)} kg</td>
-            <td className="sheet-lime" />
-            <td className="sheet-lime">{n(s.totalCost)}</td>
-            <td colSpan={2}>{brand}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="sheet-note">
-        Rates: NPR/kg. Additive amount = grams × rate ÷ 1,000. Costs use a
-        nominal one-ton recipe. Actual recipe weight: {n(s.recipeKg)} kg.
-        Price-column totals are sums of listed rates, not weighted average
-        prices.
-      </p>
-    </div>
+            </thead>
+            <tbody>
+              {rows(s.ingredients, false)}
+              <tr className="sheet-total">
+                <th>Total (B)</th>
+                <td>{n(s.ingredientKg)}</td>
+                <td />
+                <td>{n(s.ingredientAmount)}</td>
+              </tr>
+              <tr className="sheet-total">
+                <th>Bags (C)</th>
+                <td>{s.inputs.bags} PCS</td>
+                <td>{n(s.bagPrice)}</td>
+                <td>{n(s.bagAmount)}</td>
+              </tr>
+              <tr className="sheet-total">
+                <th>Total (A+B+C)</th>
+                <td>{n(s.recipeKg)}</td>
+                <td />
+                <td>{n(s.totalCost)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="sheet-footer">
+            <b>{s.code}</b> · {brand.toUpperCase()}
+          </div>
+        </div>
+        <div>
+          <table
+            className="excel-sheet analysis-table"
+            aria-label="Profit and loss analysis"
+          >
+            <colgroup>
+              <col style={{ width: "66%" }} />
+              <col style={{ width: "34%" }} />
+            </colgroup>
+            <thead>
+              <tr className="sheet-blue">
+                <th colSpan={2}>P/L ANALYSIS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analysis.map(([label, value, colour], i) => (
+                <tr key={i} className={`analysis-${colour}`}>
+                  <th>{label}</th>
+                  <td>{n(value, 4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="sheet-footer">
+            {dateText(publishedAt)}
+            <br />
+            {brand.toUpperCase()}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
+
 export function BatchSheet({
   sheet: s,
   brand,
+  publishedAt,
 }: {
   sheet: WorkerSheet;
   brand: string;
+  publishedAt?: string;
 }) {
-  const batches = [1, 5, 10];
-
+  const { user } = useAuth();
+  const role = user?.role;
+  const canAccess = role === "ADMIN" || role === "DIRECTOR";
   return (
-    <div id="feed-print" className="feed-paper batch-paper">
+    <article className="feed-paper batch-paper feed-print">
       <div className="sheet-band">
-        {s.code}
-        <span>{brand}</span>
+        <b>{s.code}</b>
+        <span>{brand.toUpperCase()}</span>
       </div>
-
-      <table className="excel-sheet batch-sheet">
+      <table
+        className="excel-sheet"
+        aria-label={`${s.code} worker batch quantities in kg`}
+      >
         <colgroup>
-          <col style={{ width: "46%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "18%" }} />
+          <col style={{ width: "28%" }} />
+          {canAccess && <col style={{ width: "13%" }} />}
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "13%" }} />
         </colgroup>
-
         <thead>
-          <tr className="sheet-lime">
-            <th className="sheet-name">Ingredients</th>
-            <th>For 1 Batch</th>
-            <th>For 5 Batch</th>
-            <th>For 10 Batch</th>
+          <tr>
+            <th>Ingredients</th>
+            {canAccess && <th>{s.code} (kg)</th>}
+            <th>{s.code} 800 kg Batch</th>
+            <th colSpan={2}>{brand}</th>
           </tr>
         </thead>
-
         <tbody>
-          {s.ingredients.map((row, index) => (
-            <tr key={index}>
-              <td className="sheet-name">{row.name}</td>
-
-              {batches.map((count) => (
-                <td key={count} className="batch-number">
-                  {n(row.batchKg * count)}
-                </td>
-              ))}
+          {s.ingredients.map((r, i) => (
+            <tr key={i}>
+              <td className="sheet-name">{r.name}</td>
+              {canAccess && (
+                <td className="sheet-reference">{n(r.referenceKg, 3)}</td>
+              )}
+              <td className="batch-number">{n(r.batchKg, 3)}</td>
+              {brand === "layers" ? <td>shraddha</td> : <td />}
+              {brand === "sirjan" ? <td>sirjan</td> : <td />}
             </tr>
           ))}
-
-          <tr className="sheet-lime">
-            <th>TOTAL INGREDIENTS</th>
-
-            {batches.map((count) => (
-              <td key={count} className="batch-number">
-                {n(s.ingredientTotal * count)}
-              </td>
-            ))}
+          <tr className="sheet-green">
+            <th>Total</th>
+            {canAccess && <td>{n(s.ingredientReference)}</td>}
+            <td>{n(s.ingredientTotal)}</td>
+            <td />
+            <td />
           </tr>
-
           <tr className="sheet-lime">
-            <th className="sheet-name">Additives</th>
+            <th>Additives / Ingredients</th>
+            {canAccess && <th>{s.code} (kg)</th>}
             <th>For 1 Batch</th>
             <th>For 5 Batch</th>
             <th>For 10 Batch</th>
           </tr>
-
-          {s.additives.map((row, index) => (
-            <tr key={index}>
-              <td className="sheet-name">{row.name}</td>
-
-              {batches.map((count) => (
-                <td key={count} className="batch-number">
-                  {n(row.one * count)}
-                </td>
-              ))}
+          {s.additives.map((r, i) => (
+            <tr key={i}>
+              <td className="sheet-name">{r.name}</td>
+              {canAccess && (
+                <td className="sheet-reference">{n(r.referenceKg, 3)}</td>
+              )}
+              <td className="batch-number">{n(r.one, 3)}</td>
+              <td className="batch-number">{n(r.five, 3)}</td>
+              <td className="batch-number">{n(r.ten, 3)}</td>
             </tr>
           ))}
-
           <tr className="sheet-green">
-            <th>TOTAL ADDITIVES</th>
-
-            {batches.map((count) => (
-              <td key={count}>{n(s.additiveOne * count)}</td>
-            ))}
+            <th>TOTAL</th>
+            {canAccess && <td>{n(s.additiveReference)}</td>}
+            <td>{n(s.additiveOne)}</td>
+            <td>{n(s.additiveFive)}</td>
+            <td>{n(s.additiveTen)}</td>
           </tr>
-
-          <tr className="sheet-band">
-            <th>Additives per batch</th>
-
-            {batches.map((count) => (
-              <td key={count}>{n((s.additiveOne * count) / count)}</td>
-            ))}
+          <tr className="sheet-cyan">
+            <th>Average additives / batch (kg)</th>
+            {canAccess && <td />}
+            <td>{n(s.additiveOne)}</td>
+            <td>{n(s.additiveFive / 5)}</td>
+            <td>{n(s.additiveTen / 10)}</td>
           </tr>
-
-          <tr className="sheet-lime">
-            <th>TOTAL FEED (kg)</th>
-
-            {batches.map((count) => (
-              <td key={count} className="batch-number">
-                {n(s.fullBatchKg * count)}
-              </td>
-            ))}
+          <tr>
+            <th>Full feed (kg)</th>
+            {canAccess && <td>{n(s.referenceKg)}</td>}
+            <td className="batch-number">{n(s.fullBatchKg)}</td>
+            <td colSpan={2}>{dateText(publishedAt)}</td>
           </tr>
         </tbody>
       </table>
-
-      <p className="sheet-note">
-        All quantities are in kg. One batch is 80% of the reference recipe; five
-        and ten batches are multiples of that quantity.
-      </p>
-    </div>
+    </article>
   );
 }

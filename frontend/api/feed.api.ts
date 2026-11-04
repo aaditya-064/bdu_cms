@@ -2,8 +2,8 @@ import { api } from ".";
 import type { ApiResponse } from "@/types/api.types";
 import type {
   Brand,
-  Costs,
   ProfitRecord,
+  Costs,
   RateRecord,
   RecipeInput,
   RecipeSummary,
@@ -61,6 +61,26 @@ export async function getProfitSheet(id: string) {
   return (
     await api.get<ApiResponse<ProfitRecord>>(
       `/feed/pl/${encodeURIComponent(id)}`,
+    )
+  ).data.data;
+}
+
+export async function getFeedBatchExcel(id: string, code?: string) {
+  return (
+    await api.get<ApiResponse<{ filename: string; base64: string }>>(
+      `/feed/batches/${encodeURIComponent(id)}/excel`,
+      { params: code ? { code } : undefined },
+    )
+  ).data.data;
+}
+
+export async function getProfitExcel(id: string, code: string) {
+  return (
+    await api.get<ApiResponse<{ filename: string; base64: string }>>(
+      `/feed/pl/${encodeURIComponent(id)}/excel`,
+      {
+        params: { code },
+      },
     )
   ).data.data;
 }

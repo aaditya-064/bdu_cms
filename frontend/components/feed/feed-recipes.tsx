@@ -13,7 +13,7 @@ import { Input, Select } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
 import { ResourceState } from "@/components/ui/resource-state";
 import { errorMessage } from "@/utils/api-error";
-import { readRecipeCsv } from "@/utils/feed-csv";
+import { readRecipeCsv, csvWarnings } from "@/utils/feed-csv";
 import {
   PRODUCTS,
   type Brand,
@@ -21,6 +21,7 @@ import {
   type SavedRecipe,
 } from "@/types/feed.types";
 import { ProfitSheet } from "./feed-sheets";
+import { FeedPLDownload } from "./feed-pl-download";
 
 export function FeedRecipes() {
   const [id, setId] = useState<string | null>(null);
@@ -81,7 +82,10 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
         className="space-y-5"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!parsed) return;
+          if (!parsed) {
+            setError("Upload your formulation CSV first.");
+            return;
+          }
           setBusy(true);
           setError(null);
           try {
@@ -160,9 +164,10 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
               }}
             />
             <p className="mt-3 text-xs leading-5 text-muted">
-              Headings: Ingredients,{PRODUCTS[brand].join(",")}. Include an
-              Additives row before the gram quantities. Rates are linked
-              separately for this brand.
+              Headings: Ingredients,{PRODUCTS[brand].join(",")}. Ingredients are
+              in kg. Add an Additives row before the gram quantities. Medicines
+              such as Methionine and Lysine stay in Ingredients here; they
+              appear in the lower additives section of the worker sheet.
             </p>
           </div>
           {error && <Notice>{error}</Notice>}
@@ -172,14 +177,14 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                 Read {parsed.rows.length} rows. Check the quantities before
                 importing.
               </p>
-              {parsed.warnings.map((warning, i) => (
+              {csvWarnings(parsed).map((warning, i) => (
                 <Notice key={i}>{warning}</Notice>
               ))}
               <div className="overflow-x-auto">
                 <table className="feed-preview">
                   <thead>
                     <tr>
-                      <th>Ingredients (kg)</th>
+                      <th>Ingredient</th>
                       {parsed.codes.map((code) => (
                         <th key={code}>{code}</th>
                       ))}
@@ -188,13 +193,13 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                   <tbody>
                     {(["ingredient", "additive"] as const).map((kind) => (
                       <Fragment key={kind}>
-                        {kind === "additive" && (
-                          <tr>
-                            <th colSpan={parsed.codes.length + 1}>
-                              Additives (grams)
-                            </th>
-                          </tr>
-                        )}
+                        <tr>
+                          <th colSpan={parsed.codes.length + 1}>
+                            {kind === "ingredient"
+                              ? "Ingredients (kg)"
+                              : "Additives (g)"}
+                          </th>
+                        </tr>
                         {parsed.rows
                           .filter((row) => row.kind === kind)
                           .map((row, i) => (
@@ -206,7 +211,9 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                             </tr>
                           ))}
                         <tr className="font-semibold">
-                          <td>{kind === "ingredient" ? "Total" : "TOTAL"}</td>
+                          <td>
+                            {kind === "ingredient" ? "Total (kg)" : "Total (g)"}
+                          </td>
                           {parsed.codes.map((code, i) => (
                             <td key={code}>
                               {Number(
@@ -256,8 +263,9 @@ const fields: [keyof Costs, string][] = [
   ["overhead", "Overhead (NPR)"],
   ["utility", "Utility (NPR)"],
   ["freight", "Freight (NPR)"],
-  ["labour", "Labour (NPR)"],
-  ["pricePerTon", "Price / ton (NPR)"],
+  ["labour", "Manufacture cost (NPR)"],
+  ["firewood", "Firewood — steam section (NPR)"],
+  ["pricePerTon", "Gross sales price / ton (NPR)"],
   ["commission", "Commission / ton (NPR)"],
 ];
 function CostEditor({ initial }: { initial: SavedRecipe }) {
@@ -267,14 +275,17 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
     Object.fromEntries(
       initial.codes.map((code) => [
         code,
-        initial.sheets.find((s) => s.code === code)?.inputs ?? {
-          bags: 20,
-          overhead: 0,
-          utility: 0,
-          freight: 0,
-          labour: 0,
-          pricePerTon: 0,
-          commission: 0,
+        {
+          firewood: 0,
+          ...(initial.sheets.find((s) => s.code === code)?.inputs ?? {
+            bags: 20,
+            overhead: 0,
+            utility: 0,
+            freight: 0,
+            labour: 0,
+            pricePerTon: 0,
+            commission: 0,
+          }),
         },
       ]),
     ),
@@ -325,7 +336,7 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
                     max="1000000"
                     step={key === "bags" ? "1" : "any"}
                     required
-                    value={costs[product][key]}
+                    value={costs[product][key] ?? 0}
                     onChange={(e) => {
                       setCosts({
                         ...costs,
@@ -352,15 +363,14 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
         </form>
         {dirty && (
           <Notice>
-            Costs have changed. Recalculate to update the saved sheets before
-            printing.
+            Ingredient rate changes automatically update this formulation’s
+            saved P/L. Reopen the formulation to see the latest calculation.
           </Notice>
         )}
         {sheet && (
           <p className="text-xs text-muted">
             Saved calculation: {new Date(recipe.publishedAt!).toLocaleString()}.
-            Updating rates later does not alter this saved sheet until you
-            recalculate.
+            Updating rates later alters this saved sheet.
           </p>
         )}
         <div className="flex flex-wrap items-end gap-3">
@@ -381,11 +391,28 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
           >
             Print P/L / Save PDF
           </Button>
+          {sheet && (
+            <FeedPLDownload
+              recipeId={recipe._id}
+              code={sheet.code}
+              disabled={dirty}
+            />
+          )}
         </div>
       </div>
+      {sheet && Math.abs(sheet.recipeKg - 1000) > 0.01 && (
+        <Notice>
+          Actual recipe weight: {sheet.recipeKg.toFixed(6)} kg. Costs use one
+          nominal ton; quantities have not been adjusted.
+        </Notice>
+      )}
       {sheet && (
         <div className="feed-overflow overflow-x-auto">
-          <ProfitSheet sheet={sheet} brand={recipe.brand} />
+          <ProfitSheet
+            sheet={sheet}
+            brand={recipe.brand}
+            publishedAt={recipe.publishedAt}
+          />
         </div>
       )}
       {!sheet && (

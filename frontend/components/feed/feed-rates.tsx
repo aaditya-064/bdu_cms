@@ -175,9 +175,7 @@ function RateEditor({
           .map((rate) => (
             <Card key={rate._id} className="space-y-3 p-4">
               <p className="text-xs text-muted">
-                {rate.kind === "additive"
-                  ? "Additive · recipe in grams"
-                  : "Ingredient · recipe in kg"}
+                Rate per kg · applies to kg and gram quantities
               </p>
               <Input
                 id={`rate-${rate._id}`}

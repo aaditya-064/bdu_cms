@@ -59,7 +59,7 @@
 }
 .sheet-blue {
   background: #4f81bd;
-  color: white;
+  color: #d00000;
 }
 .sheet-green {
   background: #00b050;
@@ -124,21 +124,21 @@
     size: A4 landscape;
     margin: 8mm;
   }
-  body:has(#feed-print) {
+  body:has(.feed-print) {
     background: white;
   }
-  body:has(#feed-print) header,
-  body:has(#feed-print) aside,
-  body:has(#feed-print) footer,
-  body:has(#feed-print) .feed-controls {
+  body:has(.feed-print) header,
+  body:has(.feed-print) aside,
+  body:has(.feed-print) footer,
+  body:has(.feed-print) .feed-controls {
     display: none !important;
   }
-  body:has(#feed-print) #main-content {
+  body:has(.feed-print) #main-content {
     padding: 0 !important;
     max-width: none;
   }
-  body:has(#feed-print) .lg\:pl-\[256px\],
-  body:has(#feed-print) .lg\:pl-\[80px\] {
+  body:has(.feed-print) .lg\:pl-\[256px\],
+  body:has(.feed-print) .lg\:pl-\[80px\] {
     padding-left: 0 !important;
   }
   .feed-paper {
@@ -166,5 +166,103 @@
   }
   .feed-overflow {
     overflow: visible !important;
+  }
+}
+
+.profit-grid {
+  display: grid;
+  grid-template-columns: 38% 35% 27%;
+  align-items: start;
+  background: #00b0df;
+}
+.profit-grid .excel-sheet {
+  font-size: 11px;
+  background: white;
+}
+.profit-grid .excel-sheet th,
+.profit-grid .excel-sheet td {
+  height: 34px;
+  padding: 4px 3px;
+}
+.profit-grid thead th {
+  height: 42px !important;
+}
+.sheet-total {
+  background: #c00000;
+  color: black;
+  font-weight: bold;
+}
+.sheet-total th {
+  color: #ff3333;
+}
+.sheet-cyan,
+.sheet-footer {
+  background: #00b0df;
+}
+.sheet-footer {
+  padding: 12px 8px;
+  text-align: center;
+  font:
+    12px Arial,
+    sans-serif;
+}
+.sheet-reference {
+  color: red;
+}
+.analysis-table th {
+  font-size: 10px;
+}
+.analysis-table td {
+  font-weight: bold;
+}
+.analysis-expense th {
+  background: red;
+  color: #002060;
+}
+.analysis-expense td {
+  background: #e87500;
+  color: #002060;
+}
+.analysis-gold {
+  background: #ffc000;
+  color: #002060;
+}
+.analysis-cost {
+  background: #963634;
+  color: #ffe080;
+}
+.analysis-sales,
+.analysis-gross th {
+  background: #7030a0;
+  color: #ffe080;
+}
+.analysis-gross td {
+  background: black;
+  color: red;
+}
+.analysis-profit {
+  background: red;
+  color: yellow;
+}
+@media print {
+  .feed-print {
+    break-after: page;
+  }
+  .feed-print:last-child {
+    break-after: auto;
+  }
+  .profit-grid .excel-sheet {
+    font-size: 8px;
+  }
+  .profit-grid .excel-sheet th,
+  .profit-grid .excel-sheet td {
+    height: 7mm;
+    padding: 1mm;
+  }
+  .profit-grid thead th {
+    height: 10mm !important;
+  }
+  .analysis-table th {
+    font-size: 7px;
   }
 }

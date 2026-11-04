@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAuth } from "@/hooks/auth.hook";
 import { useResource } from "@/hooks/resource.hook";
 import { getFeedBatch, listFeedBatches } from "@/api/feed.api";
@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/field";
 import { ResourceState } from "@/components/ui/resource-state";
+import { FeedPLViewer } from "./feed-pl-viewer";
 import { FeedRates } from "./feed-rates";
 import { FeedRecipes } from "./feed-recipes";
 import { BatchSheet } from "./feed-sheets";
-import { downloadBatchExcel } from "@/utils/feed-excel";
-import { Notice } from "@/components/ui/notice";
-import { errorMessage } from "@/utils/api-error";
 import "./feed-sheet.css";
-import { canManage, vaultEnabled } from "@/utils/permissions";
-import { FeedPLViewer } from "./feed-pl-viewer";
+import { downloadWorkerExcel } from "@/utils/feed-excel";
+import { printWorkerSheet } from "@/utils/feed-print";
+import { errorMessage } from "@/utils/api-error";
+import { Notice } from "@/components/ui/notice";
 
 export function FeedWorkspace() {
   const { user, status } = useAuth();
@@ -23,17 +23,19 @@ export function FeedWorkspace() {
   if (status !== "authenticated") return <p>Checking your session…</p>;
   const role = user?.role;
   if (
-    !["DIRECTOR", "ADMIN", "USER", "STAFF", "DIR_SUBASH"].includes(role ?? "")
+    !["DIRECTOR", "ADMIN", "DIR_SUBASH", "USER", "STAFF"].includes(role ?? "")
   )
     return <Card className="p-6">Access denied.</Card>;
   const tabs = [
+    ...(["ADMIN", "DIR_SUBASH"].includes(role ?? "")
+      ? [{ id: "pl", label: "P/L sheets" }]
+      : []),
     ...(role === "DIRECTOR"
       ? [{ id: "recipes", label: "Formulations & P/L" }]
       : []),
     ...(["DIRECTOR", "ADMIN"].includes(role ?? "")
       ? [{ id: "rates", label: "Ingredient rates" }]
       : []),
-    ...(role === "DIR_SUBASH" ? [{ id: "pl", label: "P/L sheets" }] : []),
     { id: "batches", label: "Worker batch sheets" },
   ];
   const current = tabs.some((tab) => tab.id === selected)
@@ -59,14 +61,14 @@ export function FeedWorkspace() {
           ))}
         </nav>
       </div>
+      {current === "pl" && ["ADMIN", "DIR_SUBASH"].includes(role ?? "") && (
+        <FeedPLViewer />
+      )}
       {current === "recipes" && role === "DIRECTOR" && <FeedRecipes />}
       {current === "rates" && ["DIRECTOR", "ADMIN"].includes(role ?? "") && (
         <FeedRates />
       )}
       {current === "batches" && <Batches />}
-      {current === "pl" && (role === "DIR_SUBASH" || role === "ADMIN") && (
-        <FeedPLViewer />
-      )}
     </div>
   );
 }
@@ -101,12 +103,42 @@ function Batches() {
   );
 }
 function BatchDetail({ id, back }: { id: string; back: () => void }) {
-  const loader = useCallback(() => getFeedBatch(id), [id]);
   const { user } = useAuth();
+  const canDownloadExcel = user?.role === "ADMIN" || user?.role === "DIRECTOR";
+  const printRef = useRef<HTMLDivElement>(null);
+  const [printing, setPrinting] = useState(false);
+  const loader = useCallback(() => getFeedBatch(id), [id]);
   const resource = useResource(loader);
   const [code, setCode] = useState("");
   const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState("");
+  async function exportExcel(all: boolean) {
+    if (!canDownloadExcel || !resource.data || !sheet) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      await downloadWorkerExcel(id, all ? undefined : sheet.code);
+    } catch (error) {
+      setExportError(errorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  }
+  async function printBatch() {
+    if (!printRef.current || !sheet || !resource.data) return;
+    setPrinting(true);
+    setExportError("");
+    try {
+      await printWorkerSheet(
+        printRef.current,
+        `${resource.data.brand} ${sheet.code} worker batch`,
+      );
+    } catch (error) {
+      setExportError(errorMessage(error));
+    } finally {
+      setPrinting(false);
+    }
+  }
   const sheet =
     resource.data?.sheets.find((s) => s.code === code) ??
     resource.data?.sheets[0];
@@ -116,7 +148,7 @@ function BatchDetail({ id, back }: { id: string; back: () => void }) {
         <Button variant="secondary" onClick={back}>
           All batch sheets
         </Button>
-        {sheet && vaultEnabled && canManage(user) && (
+        {sheet && (
           <>
             <Select
               id="worker-code"
@@ -129,33 +161,51 @@ function BatchDetail({ id, back }: { id: string; back: () => void }) {
               ))}
             </Select>
             <Button
-              pending={exporting}
-              onClick={async () => {
-                if (!sheet || !resource.data) return;
-
-                setExporting(true);
-                setExportError(null);
-
-                try {
-                  await downloadBatchExcel(sheet, resource.data.brand);
-                } catch (error) {
-                  setExportError(errorMessage(error));
-                } finally {
-                  setExporting(false);
-                }
-              }}
+              pending={printing}
+              disabled={exporting}
+              onClick={() => void printBatch()}
             >
-              Download Excel
+              Print A4 — one page
             </Button>
+            {canDownloadExcel && (
+              <>
+                <Button
+                  variant="secondary"
+                  pending={exporting}
+                  disabled={printing}
+                  onClick={() => void exportExcel(false)}
+                >
+                  Download Excel
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={exporting || printing}
+                  onClick={() => void exportExcel(true)}
+                >
+                  All products — Excel
+                </Button>
+              </>
+            )}
           </>
         )}
       </div>
-      {exportError && <Notice>{exportError}</Notice>}
       <ResourceState {...resource} retry={resource.reload} />
+      {exportError && <Notice>{exportError}</Notice>}
       {sheet && resource.data && (
-        <div className="feed-overflow overflow-x-auto">
-          <BatchSheet sheet={sheet} brand={resource.data.brand} />
-        </div>
+        <>
+          <p className="feed-controls text-xs text-muted">
+            Print the selected product on A4 portrait. In the print dialog, use
+            100% scale, turn off headers and footers, and enable background
+            graphics for colours.
+          </p>
+          <div ref={printRef} className="feed-overflow overflow-x-auto">
+            <BatchSheet
+              sheet={sheet}
+              brand={resource.data.brand}
+              publishedAt={resource.data.publishedAt}
+            />
+          </div>
+        </>
       )}
     </div>
   );
