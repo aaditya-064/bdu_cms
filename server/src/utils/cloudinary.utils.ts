@@ -3,7 +3,11 @@ import AppError from "./appError.utils";
 import fs from "fs";
 
 //* upload
-export const upload = async (file: Express.Multer.File, dir = "/") => {
+export const upload = async (
+  file: Express.Multer.File,
+  dir = "/",
+  originalFile: boolean = false,
+) => {
   try {
     const folder = "BDUPL" + dir;
 
@@ -11,17 +15,36 @@ export const upload = async (file: Express.Multer.File, dir = "/") => {
       file.path,
       {
         unique_filename: true,
-        folder: folder,
-        transformation: {
-          height: 800,
-          width: 800,
-          crop: "fill",
-          fetch_format: "auto",
-          format: "auto",
-          gravity: "face",
-        },
+        folder,
+        resource_type: originalFile ? "raw" : "image",
+        use_filename: originalFile,
+        transformation: originalFile
+          ? undefined
+          : {
+              height: 800,
+              width: 800,
+              crop: "fill",
+              fetch_format: "auto",
+              format: "auto",
+              gravity: "face",
+            },
       },
     );
+    // const { public_id, secure_url } = await cloudinary.uploader.upload(
+    //   file.path,
+    //   {
+    //     unique_filename: true,
+    //     folder: folder,
+    //     transformation: {
+    //       height: 800,
+    //       width: 800,
+    //       crop: "fill",
+    //       fetch_format: "auto",
+    //       format: "auto",
+    //       gravity: "face",
+    //     },
+    //   },
+    // );
 
     //* delete local file
     if (fs.existsSync(file.path)) {

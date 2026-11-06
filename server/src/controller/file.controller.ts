@@ -27,7 +27,8 @@ export const create = catchAsync(async (req, res) => {
     }
   }
 
-  const { path, public_id } = await upload(file);
+  // const { path, public_id } = await upload(file);
+  const { path, public_id } = await upload(file, "/files", true);
 
   const newFile = await File.create({
     name: name || file.originalname,

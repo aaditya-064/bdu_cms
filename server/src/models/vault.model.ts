@@ -1,32 +1,21 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-export interface IVault extends Document {
-  title: String;
-  username: String;
-  password: String;
-  website_url: String;
-  category: String;
-  notes: String;
-  status: String;
-  updated_at: Date;
-}
-
-const vaultSchema = new Schema<IVault>({
+const vaultSchema = new Schema({
   title: {
     type: String,
-    required: [true, "title is required"],
-    minLength: [3, "title must be atleast 3 characters long"],
+    required: true,
+    minlength: 3,
     trim: true,
   },
   username: {
     type: String,
-    required: [true, "username is required"],
+    required: true,
     trim: true,
   },
   password: {
     type: String,
-    required: [true, "password is required"],
-    trim: true,
+    required: true,
+    select: false,
   },
   website_url: {
     type: String,
@@ -40,16 +29,22 @@ const vaultSchema = new Schema<IVault>({
     type: String,
     trim: true,
   },
-
   status: {
     type: String,
     enum: ["Active", "inActive"],
   },
-  updated_at: {
-    type: Date,
+  updated_at: Date,
+
+  isLocked: {
+    type: Boolean,
+    default: true,
+  },
+  sharedWith: {
+    type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    default: [],
   },
 });
 
-//* vault model
 const Vault = mongoose.model("Vault", vaultSchema);
+
 export default Vault;
