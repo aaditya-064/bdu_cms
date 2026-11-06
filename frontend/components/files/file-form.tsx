@@ -96,8 +96,9 @@ export function FileForm({
               name="file"
               label="Choose file"
               type="file"
+              accept="image/*,.pdf,.xls,.xlsx,.xlsm,.xlsb,.ods,.csv,.doc,.docx,.odt,.json"
               required
-              hint="Maximum file size: 10 MB."
+              hint="Images, PDF, Excel, Word or JSON. Maximum file size: 10 MB."
             />
           )}
           <Select

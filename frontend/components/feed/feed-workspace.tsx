@@ -33,7 +33,7 @@ export function FeedWorkspace() {
     ...(role === "DIRECTOR"
       ? [{ id: "recipes", label: "Formulations & P/L" }]
       : []),
-    ...(["DIRECTOR", "ADMIN"].includes(role ?? "")
+    ...(["DIRECTOR", "ADMIN", "DIR_SUBASH"].includes(role ?? "")
       ? [{ id: "rates", label: "Ingredient rates" }]
       : []),
     { id: "batches", label: "Worker batch sheets" },
@@ -65,9 +65,10 @@ export function FeedWorkspace() {
         <FeedPLViewer />
       )}
       {current === "recipes" && role === "DIRECTOR" && <FeedRecipes />}
-      {current === "rates" && ["DIRECTOR", "ADMIN"].includes(role ?? "") && (
-        <FeedRates />
-      )}
+      {current === "rates" &&
+        ["DIRECTOR", "ADMIN", "DIR_SUBASH"].includes(role ?? "") && (
+          <FeedRates />
+        )}
       {current === "batches" && <Batches />}
     </div>
   );

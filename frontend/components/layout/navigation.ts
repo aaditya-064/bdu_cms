@@ -29,7 +29,12 @@ export const workspaceNavigation: NavigationItem[] = [
     description: "Feed recipes, costing and batch sheets",
     icon: BeakerIcon,
   },
-
+  {
+    label: "Feed Rates",
+    href: "/rate-list",
+    description: "Finished-product rates and out-of-valley prices",
+    icon: CurrencyRupeeIcon,
+  },
   {
     label: "Files",
     href: "/files",

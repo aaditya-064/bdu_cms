@@ -140,7 +140,8 @@ export function ProfitSheet({
               {analysis.map(([label, value, colour], i) => (
                 <tr key={i} className={`analysis-${colour}`}>
                   <th>{label}</th>
-                  <td>{n(value, 4)}</td>
+                  <td>{n(value, 2)}</td>
+                  {/*//! changed here  */}
                 </tr>
               ))}
             </tbody>
@@ -167,7 +168,8 @@ export function BatchSheet({
 }) {
   const { user } = useAuth();
   const role = user?.role;
-  const canAccess = role === "ADMIN" || role === "DIRECTOR";
+  const canAccess =
+    role === "ADMIN" || role === "DIRECTOR" || role === "DIR_SUBASH";
   return (
     <article className="feed-paper batch-paper feed-print">
       <div className="sheet-band">

@@ -48,8 +48,13 @@ export type Vault = {
   category?: "Bank" | "Governemnt";
   status?: "Active" | "inActive";
   notes?: string;
+  isLocked: boolean;
 };
-export type VaultInput = Omit<Vault, "_id">;
+
+export type VaultSummary = Omit<Vault, "password" | "notes">;
+
+export type VaultInput = Omit<Vault, "_id" | "isLocked">;
+
 export type ListParams = {
   query?: string;
   sortBy?: string;

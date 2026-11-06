@@ -1,109 +1,188 @@
 "use client";
+
 import { useCallback, useState } from "react";
-import { KeyIcon, PlusIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
-import { getVaults, deleteVault } from "@/api/vault.api";
-import { useAuth } from "@/hooks/auth.hook";
-import { useResource } from "@/hooks/resource.hook";
-import { useDebounce } from "@/hooks/debounce.hook";
-import { canManage, vaultEnabled } from "@/utils/permissions";
-import type { Vault } from "@/types/records.types";
+import { ArrowPathIcon, KeyIcon, PlusIcon } from "@heroicons/react/24/outline";
+
+import {
+  changeVaultAccess,
+  deleteVault,
+  getVault,
+  getVaults,
+} from "@/api/vault.api";
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card } from "@/components/ui/card";
-import { Table } from "@/components/ui/table";
-import { Input, Select } from "@/components/ui/field";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Notice } from "@/components/ui/notice";
-import { ResourceState } from "@/components/ui/resource-state";
-import { EmptyState } from "@/components/ui/empty-state";
-import { Pagination, PAGE_SIZE } from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
-import { VaultForm } from "./vault-form";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input, Select } from "@/components/ui/field";
+import { Notice } from "@/components/ui/notice";
+import { Pagination, PAGE_SIZE } from "@/components/ui/pagination";
+import { ResourceState } from "@/components/ui/resource-state";
+import { Table } from "@/components/ui/table";
+import { useAuth } from "@/hooks/auth.hook";
+import { useDebounce } from "@/hooks/debounce.hook";
+import { useResource } from "@/hooks/resource.hook";
+import type { Vault, VaultSummary } from "@/types/records.types";
+import { errorMessage } from "@/utils/api-error";
+import { canManage, vaultEnabled } from "@/utils/permissions";
 import { VaultDetail } from "./vault-detail";
+import { VaultForm } from "./vault-form";
 
 export function VaultsPageContent() {
   const { user } = useAuth();
-  // if (!vaultEnabled || !canManage(user))
-  //   return (
-  //     <>
-  //       <PageHeading
-  //         eyebrow="Business accounts"
-  //         title="Account vaults"
-  //         description="Company account records."
-  //       />
-  //       <Card>
-  //         <EmptyState
-  //           icon={KeyIcon}
-  //           title="Vault access is unavailable"
-  //           description="Contact your administrator if you need access to company account records."
-  //         />
-  //       </Card>
-  //     </>
-  //   );
-  return <VaultRecords />;
+
+  if (!vaultEnabled || !user) {
+    return (
+      <Card>
+        <EmptyState
+          icon={KeyIcon}
+          title="Vault access is unavailable"
+          description="Contact your administrator if you need access."
+        />
+      </Card>
+    );
+  }
+
+  return (
+    <VaultRecords key={`${user._id}-${user.role}`} manager={canManage(user)} />
+  );
 }
-function VaultRecords() {
-  const { user } = useAuth();
+
+function VaultRecords({ manager }: { manager: boolean }) {
   const [query, setQuery] = useState("");
-  const search = useDebounce(query);
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
-  const [editing, setEditing] = useState<Vault | "new" | null>(null);
-  const [viewing, setViewing] = useState<Vault | null>(null);
-  const [deleting, setDeleting] = useState<Vault | null>(null);
   const [page, setPage] = useState(1);
-  const [message, setMessage] = useState<string | null>(null);
+
+  const [viewing, setViewing] = useState<Vault | null>(null);
+  const [editing, setEditing] = useState<Vault | "new" | null>(null);
+  const [deleting, setDeleting] = useState<VaultSummary | null>(null);
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const search = useDebounce(query);
+
   const loader = useCallback(
     (signal: AbortSignal) =>
       getVaults({ query: search, category, status }, signal),
     [search, category, status],
   );
+
   const records = useResource(loader);
-  const data = records.data ?? [];
-  const current = Math.min(
+  const entries = records.data ?? [];
+  const currentPage = Math.min(
     page,
-    Math.max(1, Math.ceil(data.length / PAGE_SIZE)),
+    Math.max(1, Math.ceil(entries.length / PAGE_SIZE)),
   );
-  function changed(message: string) {
-    setMessage(message);
+
+  const visible = entries.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
+  function changed(text: string) {
+    setError("");
+    setMessage(text);
     void records.reload();
   }
+
+  async function openEntry(id: string, mode: "view" | "edit") {
+    if (busyId || (mode === "edit" && !manager)) return;
+
+    setBusyId(id);
+    setError("");
+    setMessage("");
+
+    try {
+      const entry = await getVault(id);
+
+      if (mode === "edit") setEditing(entry);
+      else setViewing(entry);
+    } catch (failure) {
+      setError(errorMessage(failure));
+      void records.reload();
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function toggleLock(entry: VaultSummary) {
+    if (!manager || busyId) return;
+
+    setBusyId(entry._id);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await changeVaultAccess(entry._id, {
+        action: entry.isLocked ? "unlock" : "lock",
+      });
+
+      changed(
+        result.isLocked
+          ? `"${entry.title}" locked.`
+          : `"${entry.title}" unlocked for its shared recipients.`,
+      );
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <>
       <PageHeading
         eyebrow="Business accounts"
         title="Account vaults"
-        description="Manage your company’s business account records."
+        description={
+          manager
+            ? "Manage passwords and access to company accounts."
+            : "Company accounts shared with you."
+        }
         action={
-          <Button onClick={() => setEditing("new")}>
-            <PlusIcon className="size-4" />
-            Add account
-          </Button>
+          manager ? (
+            <Button onClick={() => setEditing("new")} disabled={!!busyId}>
+              <PlusIcon className="size-4" />
+              Add account
+            </Button>
+          ) : undefined
         }
       />
+
       {message && (
-        <div className="mb-5">
+        <div className="mb-4">
           <Notice success>{message}</Notice>
         </div>
       )}
+
+      {error && (
+        <div className="mb-4">
+          <Notice>{error}</Notice>
+        </div>
+      )}
+
       <Card>
         <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_auto]">
           <Input
             id="vault-search"
             label="Search accounts"
+            placeholder="Title, username or website"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
+            onChange={(event) => {
+              setQuery(event.target.value);
               setPage(1);
             }}
-            placeholder="Title, username or website"
           />
+
           <Select
-            id="vault-category-filter"
+            id="vault-category"
             label="Category"
             value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
+            onChange={(event) => {
+              setCategory(event.target.value);
               setPage(1);
             }}
           >
@@ -111,12 +190,13 @@ function VaultRecords() {
             <option value="Bank">Bank</option>
             <option value="Governemnt">Government</option>
           </Select>
+
           <Select
-            id="vault-status-filter"
+            id="vault-status"
             label="Status"
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
+            onChange={(event) => {
+              setStatus(event.target.value);
               setPage(1);
             }}
           >
@@ -124,16 +204,18 @@ function VaultRecords() {
             <option value="Active">Active</option>
             <option value="inActive">Inactive</option>
           </Select>
+
           <Button
             variant="secondary"
             className="self-end"
-            disabled={records.loading}
+            disabled={records.loading || !!busyId}
             onClick={() => void records.reload()}
             aria-label="Refresh accounts"
           >
             <ArrowPathIcon className="size-4" />
           </Button>
         </div>
+
         {records.loading || records.error ? (
           <ResourceState
             loading={records.loading}
@@ -143,101 +225,135 @@ function VaultRecords() {
         ) : (
           <>
             <Table
-              caption="Business account records"
-              columns={[
-                "Account title",
-                "Username",
-                "Category",
-                "Status",
-                "Actions",
-              ]}
+              caption="Business accounts"
+              columns={["Account", "Username", "Category", "Status", "Actions"]}
               emptyState={
-                !data.length && (
+                entries.length === 0 && (
                   <EmptyState
                     icon={KeyIcon}
-                    title="No account records found"
-                    description="Add an account or adjust your search filters."
+                    title="No accounts found"
+                    description={
+                      manager
+                        ? "Add an account or adjust your filters."
+                        : "Unlocked accounts shared with you appear here."
+                    }
                   />
                 )
               }
             >
-              {data
-                .slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
-                .map((vault) => (
-                  <tr key={vault._id} className="hover:bg-slate-50/60">
-                    <td className="px-6 py-4 font-medium">{vault.title}</td>
-                    <td className="px-6 py-4 text-muted">{vault.username}</td>
-                    <td className="px-6 py-4 text-xs text-muted">
-                      {vault.category === "Governemnt"
-                        ? "Government"
-                        : vault.category || "—"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge
-                        tone={vault.status === "Active" ? "green" : "neutral"}
+              {visible.map((entry) => (
+                <tr key={entry._id} className="hover:bg-slate-50/60">
+                  <td className="px-6 py-4 font-medium">
+                    {entry.title}
+                    {manager && (
+                      <span className="mt-1 block text-xs text-muted">
+                        {entry.isLocked ? "Locked" : "Unlocked"}
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-6 py-4">{entry.username}</td>
+
+                  <td className="px-6 py-4 text-sm">
+                    {entry.category === "Governemnt"
+                      ? "Government"
+                      : entry.category || "—"}
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <Badge
+                      tone={entry.status === "Active" ? "green" : "neutral"}
+                    >
+                      {entry.status === "inActive"
+                        ? "Inactive"
+                        : entry.status || "Unspecified"}
+                    </Badge>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        className="text-sm font-medium text-primary"
+                        disabled={!!busyId}
+                        onClick={() => void openEntry(entry._id, "view")}
                       >
-                        {vault.status === "inActive"
-                          ? "Inactive"
-                          : vault.status || "Unspecified"}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          className="rounded text-xs font-medium text-primary"
-                          onClick={() => setViewing(vault)}
-                        >
-                          View
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded text-xs font-medium text-primary"
-                          onClick={() => setEditing(vault)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded text-xs text-red-700"
-                          onClick={() => setDeleting(vault)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        View
+                      </button>
+
+                      {manager && (
+                        <>
+                          <button
+                            type="button"
+                            className="rounded border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
+                            disabled={!!busyId}
+                            aria-label={`${entry.isLocked ? "Unlock" : "Lock"} ${entry.title}`}
+                            onClick={() => void toggleLock(entry)}
+                          >
+                            {entry.isLocked ? "Unlock" : "Lock"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary"
+                            disabled={!!busyId}
+                            onClick={() => void openEntry(entry._id, "edit")}
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-red-700"
+                            disabled={!!busyId}
+                            onClick={() => setDeleting(entry)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </Table>
-            <Pagination page={current} count={data.length} onChange={setPage} />
+
+            <Pagination
+              page={currentPage}
+              count={entries.length}
+              onChange={setPage}
+            />
           </>
         )}
       </Card>
-      {editing && (
+
+      {viewing && (
+        <VaultDetail
+          key={viewing._id}
+          vault={viewing}
+          onClose={() => setViewing(null)}
+        />
+      )}
+
+      {manager && editing && (
         <VaultForm
           vault={editing === "new" ? undefined : editing}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
-            changed("Account record saved.");
+            changed("Account saved.");
           }}
         />
       )}
-      {viewing && (
-        <VaultDetail vault={viewing} onClose={() => setViewing(null)} />
-      )}
-      {deleting && (
+
+      {manager && deleting && (
         <ConfirmDelete
           name={deleting.title}
           onClose={() => setDeleting(null)}
-          onDelete={async () => {
-            if (!canManage(user))
-              throw new Error("You do not have permission to delete accounts.");
-            await deleteVault(deleting._id);
-          }}
+          onDelete={() => deleteVault(deleting._id)}
           onDone={() => {
             setDeleting(null);
-            changed("Account record deleted.");
+            changed("Account deleted.");
           }}
         />
       )}
