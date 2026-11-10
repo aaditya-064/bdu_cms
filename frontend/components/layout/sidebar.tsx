@@ -26,6 +26,7 @@ import { workspaceNavigation, accountNavigation } from "./navigation";
 import { BrandMark } from "./brand";
 import { cn } from "@/utils/classes";
 import type { NavigationItem } from "@/types/ui.types";
+import { canUseVouchers } from "@/types/voucher.types";
 
 function SidebarContent({
   compact = false,
@@ -130,6 +131,16 @@ function SidebarContent({
               (item) =>
                 item.href !== "/feed" ||
                 (vaultEnabled && canCreateDocuments(user)),
+            )
+            .filter(
+              (item) =>
+                !["/rasid", "/bharpai"].includes(item.href) ||
+                canUseVouchers(user),
+            )
+            .filter(
+              (item) =>
+                !["/rasid", "/bharpai"].includes(item.href) ||
+                canUseVouchers(user),
             )
             .map(navigationLink)}
         </nav>

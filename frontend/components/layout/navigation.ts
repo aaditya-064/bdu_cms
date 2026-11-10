@@ -53,6 +53,18 @@ export const workspaceNavigation: NavigationItem[] = [
     description: "Business account records",
     icon: KeyIcon,
   },
+  {
+    label: "Rasid",
+    href: "/rasid",
+    description: "Cash receipts and saved records",
+    icon: DocumentTextIcon,
+  },
+  {
+    label: "Bharpai",
+    href: "/bharpai",
+    description: "Payment acknowledgments and saved records",
+    icon: DocumentTextIcon,
+  },
 ];
 
 export const accountNavigation: NavigationItem = {
