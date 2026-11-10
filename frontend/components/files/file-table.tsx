@@ -1,21 +1,26 @@
 "use client";
+
 import Link from "next/link";
 import { useState } from "react";
 import {
   DocumentTextIcon,
   ArrowUpRightIcon,
 } from "@heroicons/react/24/outline";
+
 import { useAuth } from "@/hooks/auth.hook";
 import { canManage } from "@/utils/permissions";
 import { dateLabel, safeUrl } from "@/utils/format";
 import { deleteFile } from "@/api/file.api";
 import type { CompanyFile, Folder } from "@/types/records.types";
+
 import { Table } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Pagination, PAGE_SIZE } from "@/components/ui/pagination";
+
 import { FileForm } from "./file-form";
 import { DocumentLockButton } from "./document-lock-button";
+import { DocumentPhotoView } from "./document-photo-view";
 
 export function FileTable({
   files,
@@ -29,13 +34,16 @@ export function FileTable({
   filtered?: boolean;
 }) {
   const { user } = useAuth();
+
   const [editing, setEditing] = useState<CompanyFile | null>(null);
   const [deleting, setDeleting] = useState<CompanyFile | null>(null);
   const [page, setPage] = useState(1);
+
   const current = Math.min(
     page,
     Math.max(1, Math.ceil(files.length / PAGE_SIZE)),
   );
+
   return (
     <>
       <Table
@@ -59,6 +67,7 @@ export function FileTable({
           .slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
           .map((file) => {
             const url = safeUrl(file.file?.path);
+
             return (
               <tr key={file._id} className="hover:bg-slate-50/60">
                 <td className="px-6 py-4">
@@ -66,11 +75,13 @@ export function FileTable({
                     <span className="rounded-lg bg-blue-50 p-2 text-blue-700">
                       <DocumentTextIcon className="size-5" />
                     </span>
+
                     <span className="max-w-[220px] break-words font-medium">
                       {file.name}
                     </span>
                   </div>
                 </td>
+
                 <td className="px-6 py-4 text-xs text-muted">
                   {file.parentFolder ? (
                     <Link
@@ -85,11 +96,17 @@ export function FileTable({
                     "Root folder"
                   )}
                 </td>
+
                 <td className="px-6 py-4 whitespace-nowrap text-xs text-muted">
                   {dateLabel(file.createdAt)}
                 </td>
+
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
+                    {file.file?.path === "private-document-photo" && (
+                      <DocumentPhotoView id={file._id} name={file.name} />
+                    )}
+
                     {url && (
                       <a
                         href={url}
@@ -102,6 +119,7 @@ export function FileTable({
                         <ArrowUpRightIcon className="size-3" />
                       </a>
                     )}
+
                     {canManage(user) && (
                       <>
                         <button
@@ -112,6 +130,7 @@ export function FileTable({
                         >
                           Edit
                         </button>
+
                         <button
                           type="button"
                           className="rounded text-xs text-red-700"
@@ -122,6 +141,7 @@ export function FileTable({
                         </button>
                       </>
                     )}
+
                     <DocumentLockButton
                       kind="file"
                       id={file._id}
@@ -134,7 +154,9 @@ export function FileTable({
             );
           })}
       </Table>
+
       <Pagination page={current} count={files.length} onChange={setPage} />
+
       {editing && (
         <FileForm
           file={editing}
@@ -146,14 +168,17 @@ export function FileTable({
           }}
         />
       )}
+
       {deleting && (
         <ConfirmDelete
           name={deleting.name}
           description="This file will be removed from the company library."
           onClose={() => setDeleting(null)}
           onDelete={async () => {
-            if (!canManage(user))
+            if (!canManage(user)) {
               throw new Error("You do not have permission to delete files.");
+            }
+
             await deleteFile(deleting._id);
           }}
           onDone={() => {

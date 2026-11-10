@@ -1,11 +1,14 @@
 "use client";
+
 import { Fragment, useCallback, useState } from "react";
+
 import {
   calculateRecipe,
   getFeedRecipe,
   importRecipe,
   listFeedRecipes,
 } from "@/api/feed.api";
+
 import { useResource } from "@/hooks/resource.hook";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,20 +17,24 @@ import { Notice } from "@/components/ui/notice";
 import { ResourceState } from "@/components/ui/resource-state";
 import { errorMessage } from "@/utils/api-error";
 import { readRecipeCsv, csvWarnings } from "@/utils/feed-csv";
+
 import {
   PRODUCTS,
   type Brand,
   type Costs,
   type SavedRecipe,
 } from "@/types/feed.types";
+
 import { ProfitSheet } from "./feed-sheets";
 import { FeedPLDownload } from "./feed-pl-download";
+import { FeedDeleteButton } from "./feed-delete-button";
 
 export function FeedRecipes() {
   const [id, setId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const resource = useResource(listFeedRecipes);
-  if (id)
+
+  if (id) {
     return (
       <RecipeDetail
         id={id}
@@ -37,57 +44,73 @@ export function FeedRecipes() {
         }}
       />
     );
+  }
+
   return (
     <div className="space-y-5">
       <Button onClick={() => setAdding(!adding)}>
         {adding ? "Close upload" : "Upload formulation CSV"}
       </Button>
+
       {adding && <RecipeUpload opened={setId} />}
+
       <ResourceState {...resource} retry={resource.reload} />
+
       <div className="grid gap-3 sm:grid-cols-2">
         {resource.data?.map((recipe) => (
           <Card key={recipe._id} className="p-5">
             <p className="text-xs text-primary uppercase">
               {recipe.brand} · {recipe.codes.join(" / ")}
             </p>
+
             <h2 className="my-2 font-semibold">{recipe.title}</h2>
+
             <p className="mb-4 text-xs text-muted">
               {recipe.publishedAt
                 ? `Saved ${new Date(recipe.publishedAt).toLocaleString()}`
                 : "Imported · waiting for calculation"}
             </p>
+
             <Button variant="secondary" onClick={() => setId(recipe._id)}>
               Open formulation
             </Button>
           </Card>
         ))}
       </div>
+
       {resource.data?.length === 0 && (
         <p className="text-sm text-muted">Upload your first recipe to begin.</p>
       )}
     </div>
   );
 }
+
 function RecipeUpload({ opened }: { opened: (id: string) => void }) {
   const [brand, setBrand] = useState<Brand>("shraddha");
   const [title, setTitle] = useState("");
+
   const [parsed, setParsed] = useState<ReturnType<typeof readRecipeCsv> | null>(
     null,
   );
+
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
   return (
     <Card className="p-5">
       <form
         className="space-y-5"
-        onSubmit={async (e) => {
-          e.preventDefault();
+        onSubmit={async (event) => {
+          event.preventDefault();
+
           if (!parsed) {
             setError("Upload your formulation CSV first.");
             return;
           }
+
           setBusy(true);
           setError(null);
+
           try {
             const saved = await importRecipe({
               title,
@@ -95,6 +118,7 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
               codes: parsed.codes,
               rows: parsed.rows,
             });
+
             opened(saved._id);
           } catch (failure) {
             setError(errorMessage(failure));
@@ -111,25 +135,27 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
               required
               maxLength={100}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(event) => setTitle(event.target.value)}
             />
+
             <Select
               id="recipe-brand"
               label="Brand / group"
               value={brand}
-              onChange={(e) => {
-                setBrand(e.target.value as Brand);
+              onChange={(event) => {
+                setBrand(event.target.value as Brand);
                 setParsed(null);
                 setError(null);
               }}
             >
-              {Object.keys(PRODUCTS).map((b) => (
-                <option key={b} value={b}>
-                  {b.toUpperCase()}
+              {Object.keys(PRODUCTS).map((item) => (
+                <option key={item} value={item}>
+                  {item.toUpperCase()}
                 </option>
               ))}
             </Select>
           </div>
+
           <div className="rounded-lg border border-dashed border-line bg-canvas p-5">
             <label
               htmlFor="recipe-file"
@@ -137,25 +163,34 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
             >
               Upload your recipe CSV
             </label>
+
             <input
               id="recipe-file"
               type="file"
               accept=".csv,text/csv"
               className="max-w-full text-sm"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+
                 if (!file) return;
+
                 setBusy(true);
                 setParsed(null);
                 setError(null);
+
                 try {
-                  if (file.size > 200_000)
+                  if (file.size > 200_000) {
                     throw new Error("Use a CSV smaller than 200 KB.");
+                  }
+
                   const result = readRecipeCsv(await file.text(), brand);
+
                   setParsed(result);
-                  if (!title)
+
+                  if (!title) {
                     setTitle(file.name.replace(/\.csv$/i, "").slice(0, 100));
+                  }
                 } catch (failure) {
                   setError(errorMessage(failure));
                 } finally {
@@ -163,6 +198,7 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                 }
               }}
             />
+
             <p className="mt-3 text-xs leading-5 text-muted">
               Headings: Ingredients,{PRODUCTS[brand].join(",")}. Ingredients are
               in kg. Add an Additives row before the gram quantities. Medicines
@@ -170,26 +206,32 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
               appear in the lower additives section of the worker sheet.
             </p>
           </div>
+
           {error && <Notice>{error}</Notice>}
+
           {parsed && (
             <>
               <p className="text-sm text-primary">
                 Read {parsed.rows.length} rows. Check the quantities before
                 importing.
               </p>
-              {csvWarnings(parsed).map((warning, i) => (
-                <Notice key={i}>{warning}</Notice>
+
+              {csvWarnings(parsed).map((warning, index) => (
+                <Notice key={index}>{warning}</Notice>
               ))}
+
               <div className="overflow-x-auto">
                 <table className="feed-preview">
                   <thead>
                     <tr>
                       <th>Ingredient</th>
+
                       {parsed.codes.map((code) => (
                         <th key={code}>{code}</th>
                       ))}
                     </tr>
                   </thead>
+
                   <tbody>
                     {(["ingredient", "additive"] as const).map((kind) => (
                       <Fragment key={kind}>
@@ -200,27 +242,31 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                               : "Additives (g)"}
                           </th>
                         </tr>
+
                         {parsed.rows
                           .filter((row) => row.kind === kind)
-                          .map((row, i) => (
-                            <tr key={i}>
+                          .map((row, index) => (
+                            <tr key={index}>
                               <td>{row.name}</td>
-                              {row.quantities.map((q, j) => (
-                                <td key={j}>{q}</td>
+
+                              {row.quantities.map((quantity, column) => (
+                                <td key={column}>{quantity}</td>
                               ))}
                             </tr>
                           ))}
+
                         <tr className="font-semibold">
                           <td>
                             {kind === "ingredient" ? "Total (kg)" : "Total (g)"}
                           </td>
-                          {parsed.codes.map((code, i) => (
+
+                          {parsed.codes.map((code, column) => (
                             <td key={code}>
                               {Number(
                                 parsed.rows
                                   .filter((row) => row.kind === kind)
                                   .reduce(
-                                    (sum, row) => sum + row.quantities[i],
+                                    (sum, row) => sum + row.quantities[column],
                                     0,
                                   )
                                   .toFixed(6),
@@ -233,6 +279,7 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
                   </tbody>
                 </table>
               </div>
+
               <Button type="submit" pending={busy}>
                 Import recipe & link rates
               </Button>
@@ -243,21 +290,34 @@ function RecipeUpload({ opened }: { opened: (id: string) => void }) {
     </Card>
   );
 }
+
 function RecipeDetail({ id, back }: { id: string; back: () => void }) {
   const loader = useCallback(() => getFeedRecipe(id), [id]);
   const resource = useResource(loader);
+
   return (
     <>
-      <div className="feed-controls mb-5">
+      <div className="feed-controls mb-5 flex flex-wrap gap-3">
         <Button variant="secondary" onClick={back}>
           All formulations
         </Button>
+
+        {resource.data && (
+          <FeedDeleteButton
+            id={id}
+            title={resource.data.title}
+            onDeleted={back}
+          />
+        )}
       </div>
+
       <ResourceState {...resource} retry={resource.reload} />
+
       {resource.data && <CostEditor initial={resource.data} />}
     </>
   );
 }
+
 const fields: [keyof Costs, string][] = [
   ["bags", "Number of bags"],
   ["overhead", "Overhead (NPR)"],
@@ -268,16 +328,19 @@ const fields: [keyof Costs, string][] = [
   ["pricePerTon", "Gross sales price / ton (NPR)"],
   ["commission", "Commission / ton (NPR)"],
 ];
+
 function CostEditor({ initial }: { initial: SavedRecipe }) {
   const [recipe, setRecipe] = useState(initial);
   const [code, setCode] = useState(initial.codes[0]);
+
   const [costs, setCosts] = useState<Record<string, Costs>>(() =>
     Object.fromEntries(
-      initial.codes.map((code) => [
-        code,
+      initial.codes.map((product) => [
+        product,
         {
           firewood: 0,
-          ...(initial.sheets.find((s) => s.code === code)?.inputs ?? {
+          ...(initial.sheets.find((sheet) => sheet.code === product)
+            ?.inputs ?? {
             bags: 20,
             overhead: 0,
             utility: 0,
@@ -290,29 +353,37 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
       ]),
     ),
   );
+
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sheet = recipe.sheets.find((sheet) => sheet.code === code);
+
+  const sheet = recipe.sheets.find((item) => item.code === code);
+
   return (
     <div className="space-y-5">
       <div className="feed-controls space-y-5">
         <div>
           <h2 className="text-xl font-semibold">{recipe.title}</h2>
+
           <p className="mt-1 text-sm text-muted">
             {recipe.brand.toUpperCase()} · Ingredient rates and the shared bag
             price are read when calculating. Goods loss is fixed at 2%.
           </p>
         </div>
+
         {error && <Notice>{error}</Notice>}
+
         <form
           className="space-y-4"
-          onSubmit={async (e) => {
-            e.preventDefault();
+          onSubmit={async (event) => {
+            event.preventDefault();
             setBusy(true);
             setError(null);
+
             try {
               setRecipe(await calculateRecipe(recipe._id, costs));
+
               setDirty(false);
             } catch (failure) {
               setError(errorMessage(failure));
@@ -325,6 +396,7 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
             {recipe.codes.map((product) => (
               <Card key={product} className="space-y-3 p-4">
                 <h3 className="font-semibold text-primary">{product}</h3>
+
                 {fields.map(([key, label]) => (
                   <Input
                     key={key}
@@ -337,14 +409,15 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
                     step={key === "bags" ? "1" : "any"}
                     required
                     value={costs[product][key] ?? 0}
-                    onChange={(e) => {
+                    onChange={(event) => {
                       setCosts({
                         ...costs,
                         [product]: {
                           ...costs[product],
-                          [key]: Number(e.target.value),
+                          [key]: Number(event.target.value),
                         },
                       });
+
                       setDirty(true);
                     }}
                   />
@@ -352,38 +425,44 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
               </Card>
             ))}
           </fieldset>
+
           <p className="text-xs text-muted">
             Extra costs are totals for the nominal one-ton recipe. The default
             is 20 bags; adjust the count if needed. Enter your actual selling
             price per ton.
           </p>
+
           <Button type="submit" pending={busy}>
             Calculate, save & publish batch sheets
           </Button>
         </form>
+
         {dirty && (
           <Notice>
             Ingredient rate changes automatically update this formulation’s
             saved P/L. Reopen the formulation to see the latest calculation.
           </Notice>
         )}
+
         {sheet && (
           <p className="text-xs text-muted">
             Saved calculation: {new Date(recipe.publishedAt!).toLocaleString()}.
             Updating rates later alters this saved sheet.
           </p>
         )}
+
         <div className="flex flex-wrap items-end gap-3">
           <Select
             id="sheet-code"
             label="Product sheet"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(event) => setCode(event.target.value)}
           >
-            {recipe.codes.map((c) => (
-              <option key={c}>{c}</option>
+            {recipe.codes.map((product) => (
+              <option key={product}>{product}</option>
             ))}
           </Select>
+
           <Button
             variant="secondary"
             disabled={!sheet || dirty}
@@ -391,6 +470,7 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
           >
             Print P/L / Save PDF
           </Button>
+
           {sheet && (
             <FeedPLDownload
               recipeId={recipe._id}
@@ -400,12 +480,14 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
           )}
         </div>
       </div>
+
       {sheet && Math.abs(sheet.recipeKg - 1000) > 0.01 && (
         <Notice>
           Actual recipe weight: {sheet.recipeKg.toFixed(6)} kg. Costs use one
           nominal ton; quantities have not been adjusted.
         </Notice>
       )}
+
       {sheet && (
         <div className="feed-overflow overflow-x-auto">
           <ProfitSheet
@@ -415,6 +497,7 @@ function CostEditor({ initial }: { initial: SavedRecipe }) {
           />
         </div>
       )}
+
       {!sheet && (
         <Card className="feed-controls p-5 text-sm text-muted">
           Set this brand’s ingredient prices in the Rates tab, then calculate to

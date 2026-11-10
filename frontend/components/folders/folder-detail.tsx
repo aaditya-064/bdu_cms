@@ -21,6 +21,7 @@ import { FileTable } from "@/components/files/file-table";
 import { FolderForm } from "./folder-form";
 import { FolderList } from "./folder-list";
 import type { Folder } from "@/types/records.types";
+import { DocumentCamera } from "@/components/files/document-camera";
 
 const loadAll = (signal: AbortSignal) =>
   getFolders({ sortBy: "name", order: "asc" }, signal);
@@ -94,6 +95,14 @@ export function FolderDetail({ id }: { id: string }) {
             >
               <ArrowPathIcon className="size-4" />
             </Button>
+            {contents.data && !contents.loading && !contents.error && (
+              <DocumentCamera
+                key={`${id}-${user?._id}-${user?.role}`}
+                folderId={id}
+                folderName={contents.data.folder.name}
+                onSaved={() => changed("Document photo saved in this folder.")}
+              />
+            )}
             {canManage(user) && (
               <>
                 <Button variant="secondary" onClick={() => setCreating(true)}>
