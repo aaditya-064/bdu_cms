@@ -1,0 +1,24 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const auth_routes_1 = __importDefault(require("./auth.routes"));
+const file_routes_1 = __importDefault(require("./file.routes"));
+const folder_routes_1 = __importDefault(require("./folder.routes"));
+const staff_routes_1 = __importDefault(require("./staff.routes"));
+const vault_routes_1 = __importDefault(require("./vault.routes"));
+const feed_routes_1 = __importDefault(require("./feed.routes"));
+const rateList_routes_1 = __importDefault(require("./rateList.routes"));
+const document_photo_routes_1 = __importDefault(require("./document-photo.routes"));
+const router = express_1.default.Router();
+router.use("/auth", auth_routes_1.default);
+router.use("/document-photos", document_photo_routes_1.default);
+router.use("/file", file_routes_1.default);
+router.use("/folder", folder_routes_1.default);
+router.use("/staff", staff_routes_1.default);
+router.use("/vault", vault_routes_1.default);
+router.use("/feed", feed_routes_1.default);
+router.use("/feed-rates", rateList_routes_1.default);
+exports.default = router;

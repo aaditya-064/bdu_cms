@@ -1,3 +1,6 @@
+import mongoose from "mongoose";
+import { unlink } from "node:fs/promises";
+
 import { sendResponse } from "../utils/sendResponse.utils";
 import { catchAsync } from "../utils/catchAsync.utils";
 import AppError from "../utils/appError.utils";
@@ -6,48 +9,70 @@ import Folder from "../models/folder.model";
 import { upload } from "../utils/cloudinary.utils";
 import { documentScope } from "../services/document-access.service";
 
-//* create
-
 export const create = catchAsync(async (req, res) => {
-  const { name, parentFolder } = req.body;
   const file = req.file;
 
   if (!file) {
     throw new AppError("File is required", 400);
   }
 
-  if (parentFolder) {
-    const folder = await Folder.findOne({
-      _id: parentFolder,
-      deletedAt: null,
+  try {
+    const { name, parentFolder } = req.body;
+
+    if (
+      name !== undefined &&
+      (typeof name !== "string" || !name.trim() || name.trim().length > 255)
+    ) {
+      throw new AppError("Enter a valid file name", 400);
+    }
+
+    if (parentFolder) {
+      if (
+        typeof parentFolder !== "string" ||
+        !mongoose.isObjectIdOrHexString(parentFolder)
+      ) {
+        throw new AppError("Invalid folder", 400);
+      }
+
+      const scope = await documentScope(req.user.role);
+
+      const folder = await Folder.findOne({
+        $and: [
+          {
+            _id: parentFolder,
+            deletedAt: null,
+          },
+          scope.folderFilter,
+        ],
+      });
+
+      if (!folder) {
+        throw new AppError("Folder unavailable or access denied", 404);
+      }
+    }
+
+    const { path, public_id } = await upload(file, "/files", true);
+
+    const newFile = await File.create({
+      name: name?.trim() || file.originalname,
+      parentFolder: parentFolder || null,
+      file: {
+        path,
+        public_id,
+      },
+      uploadedBy: req.user._id,
     });
 
-    if (!folder) {
-      throw new AppError("Parent folder not found", 404);
-    }
+    sendResponse(res, {
+      message: "File created successfully",
+      statusCode: 201,
+      data: newFile,
+    });
+  } finally {
+    await unlink(file.path).catch(() => undefined);
   }
-
-  // const { path, public_id } = await upload(file);
-  const { path, public_id } = await upload(file, "/files", true);
-
-  const newFile = await File.create({
-    name: name || file.originalname,
-    parentFolder: parentFolder || null,
-    file: {
-      path,
-      public_id,
-    },
-    uploadedBy: req.user._id,
-  });
-
-  sendResponse(res, {
-    message: "File created successfully",
-    statusCode: 201,
-    data: newFile,
-  });
 });
 
-//* update (rename or move)
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { name, parentFolder } = req.body;
@@ -73,7 +98,10 @@ export const update = catchAsync(async (req, res) => {
   }
 
   const updatedFile = await File.findOneAndUpdate(
-    { _id: id, deletedAt: null },
+    {
+      _id: id,
+      deletedAt: null,
+    },
     {
       $set: {
         name: name ?? existingFile.name,
@@ -81,7 +109,10 @@ export const update = catchAsync(async (req, res) => {
         updatedBy: req.user._id,
       },
     },
-    { new: true, runValidators: true },
+    {
+      new: true,
+      runValidators: true,
+    },
   );
 
   sendResponse(res, {
@@ -90,15 +121,6 @@ export const update = catchAsync(async (req, res) => {
     data: updatedFile,
   });
 });
-
-//* get all
-// GET /files?sortBy=date&order=desc
-// GET /files?sortBy=date&order=asc
-// GET /files?sortBy=name&order=asc
-// GET /files?sortBy=name&order=desc
-// GET /files?query=report
-// GET /files?parentFolder=root
-// GET /files?parentFolder=folderId
 
 export const getAll = catchAsync(async (req, res) => {
   const { query, parentFolder, sortBy = "date", order = "desc" } = req.query;
@@ -120,7 +142,6 @@ export const getAll = catchAsync(async (req, res) => {
 
   const sortField = sortBy === "name" ? "name" : "createdAt";
   const sortOrder = order === "asc" ? 1 : -1;
-
   const scope = await documentScope(req.user.role);
 
   const files = await File.find({
@@ -136,38 +157,34 @@ export const getAll = catchAsync(async (req, res) => {
   });
 });
 
-//* get by id
 export const getById = catchAsync(async (req, res) => {
-  const { id } = req.params;
-
   const scope = await documentScope(req.user.role);
 
   const file = await File.findOne({
-    $and: [{ _id: req.params.id, deletedAt: null }, scope.fileFilter],
+    $and: [
+      {
+        _id: req.params.id,
+        deletedAt: null,
+      },
+      scope.fileFilter,
+    ],
   });
-
-  if (!file) {
-    throw new AppError("File not found", 404);
-  }
 
   if (!file) {
     throw new AppError("File not found", 404);
   }
 
   sendResponse(res, {
-    message: `File:${id} fetched successfully`,
+    message: "File fetched successfully",
     statusCode: 200,
     data: file,
   });
 });
 
-//* remove (soft delete)
 export const remove = catchAsync(async (req, res) => {
-  const { id } = req.params;
-
   const file = await File.findOneAndUpdate(
     {
-      _id: id,
+      _id: req.params.id,
       deletedAt: null,
     },
     {
@@ -176,7 +193,9 @@ export const remove = catchAsync(async (req, res) => {
         updatedBy: req.user._id,
       },
     },
-    { new: true },
+    {
+      new: true,
+    },
   );
 
   if (!file) {
@@ -184,7 +203,7 @@ export const remove = catchAsync(async (req, res) => {
   }
 
   sendResponse(res, {
-    message: `File:${id} deleted successfully`,
+    message: "File deleted successfully",
     statusCode: 200,
     data: null,
   });
@@ -198,14 +217,20 @@ export const setLock = catchAsync(async (req, res) => {
   }
 
   const file = await File.findOneAndUpdate(
-    { _id: req.params.id, deletedAt: null },
+    {
+      _id: req.params.id,
+      deletedAt: null,
+    },
     {
       $set: {
         isLocked,
         updatedBy: req.user._id,
       },
     },
-    { new: true, runValidators: true },
+    {
+      new: true,
+      runValidators: true,
+    },
   );
 
   if (!file) {

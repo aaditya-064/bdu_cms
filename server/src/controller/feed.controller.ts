@@ -16,6 +16,7 @@ import { PRODUCTS, RecipeInput, Calculation, keyOf } from "../types/feed.types";
 import { catchAsync } from "../utils/catchAsync.utils";
 import { sendResponse } from "../utils/sendResponse.utils";
 import AppError from "../utils/appError.utils";
+import User from "../models/user.model";
 
 const ok = (
   res: Parameters<typeof sendResponse>[0],
@@ -459,5 +460,31 @@ export const exportProfitExcel = catchAsync(async (req, res) => {
   ok(res, {
     filename,
     base64: Buffer.from(buffer).toString("base64"),
+  });
+});
+
+export const deleteFormulation = catchAsync(async (req, res) => {
+  const user = await User.findById(req.user._id).select("role");
+
+  if (!user || !["ADMIN", "DIRECTOR"].includes(user.role)) {
+    throw new AppError("Only ADMIN and DIRECTOR can delete formulations", 403);
+  }
+
+  const id = String(req.params.id);
+
+  if (!mongoose.isObjectIdOrHexString(id)) {
+    throw new AppError("Invalid formulation ID", 400);
+  }
+
+  // P/L calculations are embedded in this record.
+  // Worker sheets are generated from those calculations.
+  // Deleting this record removes both together.
+  // Repeating the request is harmless.
+  await FeedRecipe.deleteOne({ _id: id });
+
+  sendResponse(res, {
+    statusCode: 200,
+    message: "Formulation and associated P/L and worker sheets deleted",
+    data: null,
   });
 });

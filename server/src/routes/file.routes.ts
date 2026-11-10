@@ -1,5 +1,16 @@
 import express from "express";
 import multer from "multer";
+import { mkdirSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
+
+import User from "../models/user.model";
+import {
+  Role,
+  Admin_and_Director,
+  Staff_And_Management,
+} from "../types/enum.types";
+
 import {
   create,
   getAll,
@@ -8,31 +19,68 @@ import {
   remove,
   setLock,
 } from "../controller/file.controller";
+
 import { authenticate } from "../middlewares/auth.middleware";
-import {
-  Admin_and_Director,
-  All_Roles,
-  Staff_And_Management,
-} from "../types/enum.types";
+import { catchAsync } from "../utils/catchAsync.utils";
+import AppError from "../utils/appError.utils";
 
 const router = express.Router();
 
+mkdirSync("uploads", { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     cb(null, "uploads/");
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + "-" + file.originalname);
+
+  filename: (_req, file, cb) => {
+    const extension = extname(file.originalname).toLowerCase();
+
+    const safeExtension = /^\.[a-z0-9]{1,10}$/.test(extension) ? extension : "";
+
+    cb(null, randomUUID() + safeExtension);
   },
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+  },
 });
 
-router.use(authenticate(Staff_And_Management));
+router.use(authenticate());
+
+router.use(
+  catchAsync(async (req, _res, next) => {
+    const user = await User.findById(req.user._id).select("role");
+
+    if (!user || !Staff_And_Management.includes(user.role as Role)) {
+      throw new AppError("Access denied", 403);
+    }
+
+    req.user.role = user.role as Role;
+    next();
+  }),
+);
+
+const manage = catchAsync(async (req, _res, next) => {
+  if (!Admin_and_Director.includes(req.user.role)) {
+    throw new AppError("Access denied", 403);
+  }
+
+  next();
+});
+
+const createAllowed = catchAsync(async (req, _res, next) => {
+  const roles = [Role.ADMIN, Role.DIRECTOR, Role.STAFF, Role.DIR_SUBASH];
+
+  if (!roles.includes(req.user.role)) {
+    throw new AppError("Access denied", 403);
+  }
+
+  next();
+});
 
 router.use((_req, res, next) => {
   res.setHeader("Cache-Control", "private, no-store");
@@ -41,9 +89,11 @@ router.use((_req, res, next) => {
 
 router.get("/", getAll);
 router.get("/:id", getById);
-router.post("/create", authenticate(All_Roles), upload.single("file"), create);
-router.patch("/update/:id", authenticate(Admin_and_Director), update);
-router.delete("/delete/:id", authenticate(Admin_and_Director), remove);
-router.patch("/:id/lock", authenticate(Admin_and_Director), setLock);
+
+router.post("/create", createAllowed, upload.single("file"), create);
+
+router.patch("/update/:id", manage, update);
+router.delete("/delete/:id", manage, remove);
+router.patch("/:id/lock", manage, setLock);
 
 export default router;
