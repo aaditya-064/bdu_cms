@@ -103,18 +103,17 @@ export function FolderDetail({ id }: { id: string }) {
                 onSaved={() => changed("Document photo saved in this folder.")}
               />
             )}
-            {canManage(user) && (
-              <>
-                <Button variant="secondary" onClick={() => setCreating(true)}>
-                  <FolderPlusIcon className="size-4" />
-                  New folder
-                </Button>
-                <Button onClick={() => setUploading(true)}>
-                  <ArrowUpTrayIcon className="size-4" />
-                  Upload file
-                </Button>
-              </>
-            )}
+
+            <>
+              <Button variant="secondary" onClick={() => setCreating(true)}>
+                <FolderPlusIcon className="size-4" />
+                New folder
+              </Button>
+              <Button onClick={() => setUploading(true)}>
+                <ArrowUpTrayIcon className="size-4" />
+                Upload file
+              </Button>
+            </>
           </div>
         }
       />

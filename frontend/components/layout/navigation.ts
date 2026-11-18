@@ -7,6 +7,7 @@ import {
   UserCircleIcon,
   BeakerIcon,
   CurrencyRupeeIcon,
+  ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
 import type { NavigationItem } from "@/types/ui.types";
 
@@ -64,6 +65,12 @@ export const workspaceNavigation: NavigationItem[] = [
     href: "/bharpai",
     description: "Payment acknowledgments and saved records",
     icon: DocumentTextIcon,
+  },
+  {
+    label: "Audit Logs",
+    href: "/audit-logs",
+    description: "Review changes to workspace records",
+    icon: ClipboardDocumentListIcon,
   },
 ];
 

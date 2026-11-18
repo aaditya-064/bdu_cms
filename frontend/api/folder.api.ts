@@ -44,3 +44,6 @@ export async function createFolder(data: {
 export async function deleteFolder(id: string) {
   await api.delete(`/folder/delete/${encodeURIComponent(id)}`);
 }
+export async function renameFolder(id: string, name: string) {
+  await api.patch(`/folder/update/${encodeURIComponent(id)}`, { name });
+}

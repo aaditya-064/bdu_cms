@@ -21,6 +21,7 @@ import {
   canManage,
   vaultEnabled,
   canCreateDocuments,
+  canViewLogs,
 } from "@/utils/permissions";
 import { workspaceNavigation, accountNavigation } from "./navigation";
 import { BrandMark } from "./brand";
@@ -139,8 +140,7 @@ function SidebarContent({
             )
             .filter(
               (item) =>
-                !["/rasid", "/bharpai"].includes(item.href) ||
-                canUseVouchers(user),
+                !["/audit-logs"].includes(item.href) || canViewLogs(user),
             )
             .map(navigationLink)}
         </nav>
