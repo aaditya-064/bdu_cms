@@ -4,6 +4,10 @@ import AppError from "../utils/appError.utils";
 import Folder from "../models/folder.model";
 import File from "../models/file.model";
 import { documentScope } from "../services/document-access.service";
+import { isValidObjectId } from "mongoose";
+import User from "../models/user.model";
+import { describeAudit } from "../middlewares/audit.middleware";
+import { Role } from "../types/enum.types";
 
 //* create
 export const create = catchAsync(async (req, res) => {
@@ -39,55 +43,110 @@ export const create = catchAsync(async (req, res) => {
 });
 
 //* update (rename or move)
+// export const update = catchAsync(async (req, res) => {
+//   const { id } = req.params;
+//   const { name, parentFolder } = req.body;
+
+//   const existingFile = await File.findOne({
+//     _id: id,
+//     deletedAt: null,
+//   });
+
+//   if (!existingFile) {
+//     throw new AppError("File not found", 404);
+//   }
+
+//   if (parentFolder) {
+//     const folder = await Folder.findOne({
+//       _id: parentFolder,
+//       deletedAt: null,
+//     });
+
+//     if (!folder) {
+//       throw new AppError("Parent folder not found", 404);
+//     }
+//   }
+
+//   const updatedFile = await File.findOneAndUpdate(
+//     { _id: id, deletedAt: null },
+//     {
+//       $set: {
+//         name: name ?? existingFile.name,
+//         parentFolder: parentFolder ?? existingFile.parentFolder,
+//         updatedBy: req.user._id,
+//       },
+//     },
+//     { new: true, runValidators: true },
+//   );
+
+//   sendResponse(res, {
+//     message: "File updated successfully",
+//     statusCode: 200,
+//     data: updatedFile,
+//   });
+// });
+
 export const update = catchAsync(async (req, res) => {
-  const { id } = req.params;
-  const { name, parentFolder } = req.body;
+  const id = String(req.params.id);
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
 
-  const existingFile = await File.findOne({
-    _id: id,
-    deletedAt: null,
-  });
+  // const account = await User.findById(req.user._id).select("role").lean();
+  // if (account?.role !== "ADMIN" && account?.role !== "DIRECTOR") {
+  //   throw new AppError("Only admins and directors can rename folders.", 403);
+  // }
 
-  if (!existingFile) {
-    throw new AppError("File not found", 404);
+  if (!isValidObjectId(id)) {
+    throw new AppError("Invalid folder ID.", 400);
   }
 
-  if (parentFolder) {
-    const folder = await Folder.findOne({
-      _id: parentFolder,
-      deletedAt: null,
+  if (!name || name.length > 200) {
+    throw new AppError(
+      "Enter a folder name between 1 and 200 characters.",
+      400,
+    );
+  }
+
+  const account = await User.findById(req.user._id).select("role").lean();
+
+  if (account?.role !== Role.ADMIN && account?.role !== Role.DIRECTOR) {
+    throw new AppError("Only admins and directors can rename folders.", 403);
+  }
+
+  const role = account.role === Role.ADMIN ? Role.ADMIN : Role.DIRECTOR;
+  const scope = await documentScope(role);
+
+  try {
+    const previous = await Folder.findOneAndUpdate(
+      { $and: [{ _id: id, deletedAt: null }, scope.folderFilter] },
+      { $set: { name, updatedBy: req.user._id } },
+      { new: false, runValidators: true },
+    )
+      .select("_id name")
+      .lean();
+
+    if (!previous) {
+      throw new AppError("Folder unavailable or access denied.", 404);
+    }
+
+    describeAudit(res, {
+      action: "Renamed folder",
+      recordId: id,
+      recordName: name,
+      changes: [{ field: "Folder name", before: previous.name, after: name }],
     });
 
-    if (!folder) {
-      throw new AppError("Parent folder not found", 404);
+    sendResponse(res, {
+      statusCode: 200,
+      message: "Folder renamed.",
+      data: { _id: id, name },
+    });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === 11000) {
+      throw new AppError("A folder with that name already exists here.", 409);
     }
+    throw error;
   }
-
-  const updatedFile = await File.findOneAndUpdate(
-    { _id: id, deletedAt: null },
-    {
-      $set: {
-        name: name ?? existingFile.name,
-        parentFolder: parentFolder ?? existingFile.parentFolder,
-        updatedBy: req.user._id,
-      },
-    },
-    { new: true, runValidators: true },
-  );
-
-  sendResponse(res, {
-    message: "File updated successfully",
-    statusCode: 200,
-    data: updatedFile,
-  });
 });
-
-//* get all
-// GET /folders?sortBy=date&order=desc
-// GET /folders?sortBy=name&order=asc
-// GET /folders?query=reports
-// GET /folders?parentFolder=root
-// GET /folders?parentFolder=folderId
 
 export const getAll = catchAsync(async (req, res) => {
   const {

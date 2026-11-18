@@ -1,5 +1,7 @@
-import express from "express";
-
+import express, { type Router } from "express";
+import { authenticate } from "../middlewares/auth.middleware";
+import { auditModule } from "../middlewares/audit.middleware";
+import auditLogRoutes from "./audit.routes";
 import authRoutes from "./auth.routes";
 import fileRoutes from "./file.routes";
 import folderRoutes from "./folder.routes";
@@ -12,20 +14,25 @@ import { rasidRoutes, bharpaiRoutes } from "./voucher.routes";
 
 const router = express.Router();
 
-router.use((req, _res, next) => {
-  console.log("[API request]", req.method, req.originalUrl);
-  next();
-});
-
 router.use("/auth", authRoutes);
-router.use("/document-photos", documentPhotos);
-router.use("/file", fileRoutes);
-router.use("/folder", folderRoutes);
-router.use("/staff", staffRoutes);
-router.use("/vault", vaultRoutes);
-router.use("/feed", feedRoutes);
-router.use("/feed-rates", rateList);
-router.use("/rasid", rasidRoutes);
-router.use("/bharpai", bharpaiRoutes);
+router.use("/audit-logs", auditLogRoutes);
+
+function protectedModule(path: string, name: string, routes: Router) {
+  router.use(path, authenticate(), auditModule(name), routes);
+}
+
+protectedModule("/document-photos", "Document photos", documentPhotos);
+protectedModule("/file", "Files", fileRoutes);
+protectedModule("/folder", "Folders", folderRoutes);
+protectedModule("/staff", "Staff", staffRoutes);
+protectedModule("/vault", "Vault", vaultRoutes);
+protectedModule("/feed", "Feed", feedRoutes);
+protectedModule("/feed-rates", "Feed rates", rateList);
+protectedModule("/rasid", "Rasid", rasidRoutes);
+protectedModule("/bharpai", "Bharpai", bharpaiRoutes);
+
+// If auth.routes.ts contains protected user-management routes, add
+// auditModule("Users") AFTER authenticate() on those specific routes.
+// Leave login, password reset and other public auth endpoints as they are.
 
 export default router;

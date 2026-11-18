@@ -14,6 +14,7 @@ import { documentScope } from "../services/document-access.service";
 import { catchAsync } from "../utils/catchAsync.utils";
 import AppError from "../utils/appError.utils";
 import { sendResponse } from "../utils/sendResponse.utils";
+import { describeAudit } from "../middlewares/audit.middleware";
 
 const router = express.Router();
 
@@ -208,6 +209,13 @@ router.post(
 
       // The saved database record now owns the uploaded asset.
       uploaded = false;
+
+      describeAudit(res, {
+        action: "Uploaded document photo",
+        recordId: String(saved._id),
+        recordName: saved.name,
+        changes: [{ field: "Folder ID", before: null, after: folderId }],
+      });
 
       sendResponse(res, {
         statusCode: 201,
