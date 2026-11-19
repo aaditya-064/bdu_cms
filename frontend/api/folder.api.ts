@@ -33,6 +33,7 @@ export async function getFolder(id: string, signal?: AbortSignal) {
   }
   return contents;
 }
+
 export async function createFolder(data: {
   name: string;
   category: string;
@@ -41,12 +42,15 @@ export async function createFolder(data: {
   return (await api.post<ApiResponse<Folder>>("/folder/create", data)).data
     .data;
 }
+
 export async function deleteFolder(id: string) {
   await api.delete(`/folder/delete/${encodeURIComponent(id)}`);
 }
+
 export async function renameFolder(id: string, name: string) {
   await api.patch(`/folder/update/${encodeURIComponent(id)}`, { name });
 }
+
 export async function updateFolder(
   id: string,
   changes: { name?: string; category?: string },
