@@ -157,10 +157,14 @@ export const update = catchAsync(async (req, res) => {
   }
 
   if (name === undefined && category === undefined) {
-    throw new AppError("Enter a folder name or category to update", 400);
+    throw new AppError("Provide a folder name or category to update", 400);
   }
 
-  const changes: { name?: string; category?: string } = {};
+  const folder = await Folder.findOne({ _id: id, deletedAt: null });
+
+  if (!folder) {
+    throw new AppError("Folder not found", 404);
+  }
 
   if (name !== undefined) {
     if (typeof name !== "string" || !name.trim() || name.trim().length > 200) {
@@ -169,32 +173,27 @@ export const update = catchAsync(async (req, res) => {
         400,
       );
     }
-    changes.name = name.trim();
+
+    folder.name = name.trim();
   }
 
   if (category !== undefined) {
     if (typeof category !== "string") {
       throw new AppError("Category must be text", 400);
     }
-    changes.category = category.trim() || "General";
+
+    folder.category = category.trim() || "General";
   }
 
-  const folder = await Folder.findOneAndUpdate(
-    { _id: id, deletedAt: null },
-    { $set: { ...changes, updatedBy: req.user._id } },
-    { new: true, runValidators: true },
-  ).catch((error: unknown) => {
+  folder.updatedBy = req.user._id;
+
+  try {
+    await folder.save();
+  } catch (error) {
     if (error instanceof Error && "code" in error && error.code === 11000) {
-      throw new AppError(
-        "Another folder in this location already has that name",
-        409,
-      );
+      throw new AppError("A folder with this name already exists here", 409);
     }
     throw error;
-  });
-
-  if (!folder) {
-    throw new AppError("Folder not found", 404);
   }
 
   sendResponse(res, {
