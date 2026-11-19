@@ -47,3 +47,14 @@ export async function deleteFolder(id: string) {
 export async function renameFolder(id: string, name: string) {
   await api.patch(`/folder/update/${encodeURIComponent(id)}`, { name });
 }
+export async function updateFolder(
+  id: string,
+  changes: { name?: string; category?: string },
+) {
+  const response = await api.patch<ApiResponse<Folder>>(
+    `/folder/update/${encodeURIComponent(id)}`,
+    changes,
+  );
+
+  return response.data.data;
+}

@@ -5,11 +5,10 @@ import { useState, type FormEvent } from "react";
 import {
   ArrowUpRightIcon,
   FolderIcon,
-  LockClosedIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 
-import { api } from "@/api";
-import { deleteFolder } from "@/api/folder.api";
+import { deleteFolder, updateFolder } from "@/api/folder.api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
@@ -24,20 +23,11 @@ import type { Folder } from "@/types/records.types";
 import { errorMessage } from "@/utils/api-error";
 import { dateLabel } from "@/utils/format";
 
-type FolderRow = Folder & {
-  isLocked?: boolean;
-};
-
 type FolderListProps = {
-  folders: FolderRow[];
+  folders: Folder[];
   onChanged: (message: string) => void;
   filtered?: boolean;
 };
-
-// Use your existing folder-lock endpoint here if it differs.
-async function setFolderLocked(id: string, isLocked: boolean) {
-  await api.patch(`/folder/lock/${encodeURIComponent(id)}`, { isLocked });
-}
 
 export function FolderList({
   folders,
@@ -45,79 +35,73 @@ export function FolderList({
   filtered = false,
 }: FolderListProps) {
   const { user } = useAuth();
-  const canManageFolders = user?.role === "ADMIN" || user?.role === "DIRECTOR";
+  const canEdit = user?.role === "ADMIN" || user?.role === "DIRECTOR";
 
   const [page, setPage] = useState(1);
-  const [renaming, setRenaming] = useState<FolderRow | null>(null);
-  const [deleting, setDeleting] = useState<FolderRow | null>(null);
-  const [newName, setNewName] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [renameError, setRenameError] = useState("");
-  const [lockingId, setLockingId] = useState<string | null>(null);
-  const [listError, setListError] = useState("");
+  const [editing, setEditing] = useState<Folder | null>(null);
+  const [deleting, setDeleting] = useState<Folder | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(folders.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
-  const firstRow = (currentPage - 1) * PAGE_SIZE;
-  const visibleFolders = folders.slice(firstRow, firstRow + PAGE_SIZE);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const visibleFolders = folders.slice(start, start + PAGE_SIZE);
 
-  function openRename(folder: FolderRow) {
-    setRenameError("");
-    setNewName(folder.name);
-    setRenaming(folder);
+  function openEditor(folder: Folder) {
+    setEditError(null);
+    setEditing(folder);
   }
 
-  async function saveName(event: FormEvent<HTMLFormElement>) {
+  function closeEditor() {
+    if (!saving) setEditing(null);
+  }
+
+  async function saveFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const name = newName.trim();
+    if (!editing || !canEdit || saving) return;
 
-    if (!canManageFolders || !renaming || savingName) return;
-    if (!name || name.length > 200 || name === renaming.name) return;
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name") ?? "").trim();
+    const category = String(form.get("category") ?? "").trim() || "General";
 
-    setSavingName(true);
-    setRenameError("");
-
-    try {
-      await api.patch(`/folder/update/${encodeURIComponent(renaming._id)}`, {
-        name,
-      });
-
-      setRenaming(null);
-      onChanged("Folder renamed.");
-    } catch (error) {
-      setRenameError(errorMessage(error));
-    } finally {
-      setSavingName(false);
+    if (!name) {
+      setEditError("Please enter a folder name.");
+      return;
     }
-  }
 
-  async function changeLock(folder: FolderRow) {
-    if (!canManageFolders || lockingId !== null) return;
+    const changes: { name?: string; category?: string } = {};
 
-    const nextLocked = !folder.isLocked;
+    if (name !== editing.name) {
+      changes.name = name;
+    }
 
-    setLockingId(folder._id);
-    setListError("");
+    if (category !== (editing.category || "General")) {
+      changes.category = category;
+    }
+
+    if (!changes.name && !changes.category) {
+      setEditing(null);
+      return;
+    }
+
+    setEditError(null);
+    setSaving(true);
 
     try {
-      await setFolderLocked(folder._id, nextLocked);
-      onChanged(nextLocked ? "Folder locked." : "Folder unlocked.");
+      await updateFolder(editing._id, changes);
+      setEditing(null);
+      onChanged("Folder updated.");
     } catch (error) {
-      setListError(errorMessage(error));
+      setEditError(errorMessage(error));
     } finally {
-      setLockingId(null);
+      setSaving(false);
     }
   }
 
   return (
     <>
-      {listError && (
-        <div className="px-5 py-3">
-          <Notice>{listError}</Notice>
-        </div>
-      )}
-
       <Table
         caption="Folders"
         columns={["Folder name", "Category", "Date created", "Actions"]}
@@ -128,7 +112,7 @@ export function FolderList({
               title={filtered ? "No matching folders" : "No folders yet"}
               description={
                 filtered
-                  ? "Try another search or category."
+                  ? "Try another folder name or category."
                   : "Folders created in this location will appear here."
               }
             />
@@ -143,22 +127,15 @@ export function FolderList({
               <td className="px-6 py-4">
                 <Link
                   href={href}
-                  className="inline-flex items-center gap-3 rounded font-medium text-ink hover:text-primary"
+                  className="flex items-center gap-3 rounded font-medium hover:text-primary"
                 >
                   <span className="rounded-lg bg-amber-50 p-2 text-amber-700">
-                    <FolderIcon className="size-5" aria-hidden="true" />
+                    <FolderIcon className="size-5" />
                   </span>
 
                   <span className="max-w-[240px] break-words">
                     {folder.name}
                   </span>
-
-                  {folder.isLocked && (
-                    <span className="text-muted" title="Locked folder">
-                      <LockClosedIcon className="size-4" aria-hidden="true" />
-                      <span className="sr-only">Locked</span>
-                    </span>
-                  )}
                 </Link>
               </td>
 
@@ -174,42 +151,30 @@ export function FolderList({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <Link
                     href={href}
-                    className="inline-flex items-center gap-1 rounded text-xs font-medium text-primary hover:underline"
+                    aria-label={`Open ${folder.name}`}
+                    className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-primary hover:underline"
                   >
                     Open
-                    <ArrowUpRightIcon className="size-3" aria-hidden="true" />
+                    <ArrowUpRightIcon className="size-3" />
                   </Link>
 
-                  {canManageFolders && (
+                  {canEdit && (
                     <>
                       <button
                         type="button"
-                        onClick={() => openRename(folder)}
-                        aria-label={`Rename ${folder.name}`}
-                        className="rounded text-xs font-medium text-primary hover:underline"
+                        onClick={() => openEditor(folder)}
+                        aria-label={`Edit ${folder.name}`}
+                        className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-primary hover:underline"
                       >
-                        Rename
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={lockingId !== null}
-                        onClick={() => void changeLock(folder)}
-                        aria-label={`${folder.isLocked ? "Unlock" : "Lock"} ${folder.name}`}
-                        className="rounded text-xs font-medium text-primary hover:underline disabled:opacity-50"
-                      >
-                        {lockingId === folder._id
-                          ? "Saving…"
-                          : folder.isLocked
-                            ? "Unlock"
-                            : "Lock"}
+                        <PencilSquareIcon className="size-4" />
+                        Edit
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setDeleting(folder)}
                         aria-label={`Delete ${folder.name}`}
-                        className="rounded text-xs font-medium text-red-700 hover:underline"
+                        className="rounded py-1 text-xs font-medium text-red-700 hover:underline"
                       >
                         Delete
                       </button>
@@ -228,56 +193,61 @@ export function FolderList({
         onChange={setPage}
       />
 
-      {canManageFolders && renaming && (
+      {editing && canEdit && (
         <Dialog
+          key={editing._id}
           open
-          title="Rename folder"
-          onClose={() => {
-            if (!savingName) setRenaming(null);
-          }}
+          title="Edit folder"
+          onClose={closeEditor}
         >
-          <form onSubmit={saveName} className="space-y-5">
-            <Input
-              id="rename-folder-name"
-              label="Folder name"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              maxLength={200}
-              disabled={savingName}
-              autoFocus
-              required
-            />
+          <form onSubmit={saveFolder} aria-busy={saving}>
+            <fieldset disabled={saving} className="space-y-5">
+              {editError && <Notice>{editError}</Notice>}
 
-            {renameError && <Notice>{renameError}</Notice>}
+              <Input
+                id="edit-folder-name"
+                name="name"
+                label="Folder name"
+                defaultValue={editing.name}
+                maxLength={200}
+                required
+              />
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={savingName}
-                onClick={() => setRenaming(null)}
-              >
-                Cancel
-              </Button>
+              <Input
+                id="edit-folder-category"
+                name="category"
+                label="Category"
+                defaultValue={editing.category || "General"}
+                placeholder="General"
+                aria-describedby="folder-category-help"
+              />
 
-              <Button
-                type="submit"
-                pending={savingName}
-                disabled={!newName.trim() || newName.trim() === renaming.name}
-              >
-                Save name
-              </Button>
-            </div>
+              <p id="folder-category-help" className="text-xs text-muted">
+                Enter a category, or leave it blank to use General.
+              </p>
+
+              <div className="flex justify-end gap-3 border-t border-line pt-5">
+                <Button type="button" variant="secondary" onClick={closeEditor}>
+                  Cancel
+                </Button>
+
+                <Button type="submit" pending={saving}>
+                  {saving ? "Saving…" : "Save changes"}
+                </Button>
+              </div>
+            </fieldset>
           </form>
         </Dialog>
       )}
 
-      {canManageFolders && deleting && (
+      {deleting && canEdit && (
         <ConfirmDelete
           name={deleting.name}
           description="Only empty folders can be deleted. Move or remove its contents first."
           onClose={() => setDeleting(null)}
-          onDelete={() => deleteFolder(deleting._id)}
+          onDelete={async () => {
+            await deleteFolder(deleting._id);
+          }}
           onDone={() => {
             setDeleting(null);
             onChanged("Folder deleted.");
