@@ -5,10 +5,16 @@ import { useState, type FormEvent } from "react";
 import {
   ArrowUpRightIcon,
   FolderIcon,
+  LockClosedIcon,
+  LockOpenIcon,
   PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 
-import { deleteFolder, updateFolder } from "@/api/folder.api";
+import {
+  deleteFolder,
+  setFolderLock,
+  updateFolder,
+} from "@/api/folder.api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
@@ -35,13 +41,16 @@ export function FolderList({
   filtered = false,
 }: FolderListProps) {
   const { user } = useAuth();
-  const canEdit = user?.role === "ADMIN" || user?.role === "DIRECTOR";
+  const canManage = user?.role === "ADMIN" || user?.role === "DIRECTOR";
 
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Folder | null>(null);
   const [deleting, setDeleting] = useState<Folder | null>(null);
+
   const [saving, setSaving] = useState(false);
+  const [lockingId, setLockingId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [lockError, setLockError] = useState<string | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(folders.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -53,14 +62,9 @@ export function FolderList({
     setEditing(folder);
   }
 
-  function closeEditor() {
-    if (!saving) setEditing(null);
-  }
-
   async function saveFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!editing || !canEdit || saving) return;
+    if (!canManage || !editing || saving) return;
 
     const form = new FormData(event.currentTarget);
     const name = String(form.get("name") ?? "").trim();
@@ -73,21 +77,18 @@ export function FolderList({
 
     const changes: { name?: string; category?: string } = {};
 
-    if (name !== editing.name) {
-      changes.name = name;
-    }
-
+    if (name !== editing.name) changes.name = name;
     if (category !== (editing.category || "General")) {
       changes.category = category;
     }
 
-    if (!changes.name && !changes.category) {
+    if (Object.keys(changes).length === 0) {
       setEditing(null);
       return;
     }
 
-    setEditError(null);
     setSaving(true);
+    setEditError(null);
 
     try {
       await updateFolder(editing._id, changes);
@@ -100,8 +101,30 @@ export function FolderList({
     }
   }
 
+  async function changeLock(folder: Folder) {
+    if (!canManage || lockingId !== null) return;
+
+    setLockingId(folder._id);
+    setLockError(null);
+
+    try {
+      const updated = await setFolderLock(folder._id, !folder.isLocked);
+      onChanged(updated.isLocked ? "Folder locked." : "Folder unlocked.");
+    } catch (error) {
+      setLockError(errorMessage(error));
+    } finally {
+      setLockingId(null);
+    }
+  }
+
   return (
     <>
+      {lockError && (
+        <div className="px-5 pt-4">
+          <Notice>{lockError}</Notice>
+        </div>
+      )}
+
       <Table
         caption="Folders"
         columns={["Folder name", "Category", "Date created", "Actions"]}
@@ -113,7 +136,7 @@ export function FolderList({
               description={
                 filtered
                   ? "Try another folder name or category."
-                  : "Folders created in this location will appear here."
+                  : "Folders created here will appear in this list."
               }
             />
           )
@@ -121,21 +144,31 @@ export function FolderList({
       >
         {visibleFolders.map((folder) => {
           const href = `/folders/${encodeURIComponent(folder._id)}`;
+          const isLocked = folder.isLocked === true;
+          const lockLabel = isLocked ? "Unlock" : "Lock";
+          const LockActionIcon = isLocked ? LockOpenIcon : LockClosedIcon;
 
           return (
             <tr key={folder._id} className="hover:bg-slate-50/60">
               <td className="px-6 py-4">
                 <Link
                   href={href}
-                  className="flex items-center gap-3 rounded font-medium hover:text-primary"
+                  className="inline-flex items-center gap-3 rounded font-medium hover:text-primary"
                 >
-                  <span className="rounded-lg bg-amber-50 p-2 text-amber-700">
-                    <FolderIcon className="size-5" />
+                  <span className="shrink-0 rounded-lg bg-amber-50 p-2 text-amber-700">
+                    <FolderIcon aria-hidden="true" className="size-5" />
                   </span>
 
                   <span className="max-w-[240px] break-words">
                     {folder.name}
                   </span>
+
+                  {isLocked && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted">
+                      <LockClosedIcon aria-hidden="true" className="size-3.5" />
+                      Locked
+                    </span>
+                  )}
                 </Link>
               </td>
 
@@ -155,10 +188,10 @@ export function FolderList({
                     className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-primary hover:underline"
                   >
                     Open
-                    <ArrowUpRightIcon className="size-3" />
+                    <ArrowUpRightIcon aria-hidden="true" className="size-3" />
                   </Link>
 
-                  {canEdit && (
+                  {canManage && (
                     <>
                       <button
                         type="button"
@@ -166,8 +199,19 @@ export function FolderList({
                         aria-label={`Edit ${folder.name}`}
                         className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-primary hover:underline"
                       >
-                        <PencilSquareIcon className="size-4" />
+                        <PencilSquareIcon aria-hidden="true" className="size-4" />
                         Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => void changeLock(folder)}
+                        disabled={lockingId !== null}
+                        aria-label={`${lockLabel} ${folder.name}`}
+                        className="inline-flex items-center gap-1 rounded py-1 text-xs font-medium text-primary hover:underline disabled:cursor-wait disabled:opacity-50"
+                      >
+                        <LockActionIcon aria-hidden="true" className="size-4" />
+                        {lockingId === folder._id ? "Saving…" : lockLabel}
                       </button>
 
                       <button
@@ -193,12 +237,14 @@ export function FolderList({
         onChange={setPage}
       />
 
-      {editing && canEdit && (
+      {editing && canManage && (
         <Dialog
           key={editing._id}
           open
           title="Edit folder"
-          onClose={closeEditor}
+          onClose={() => {
+            if (!saving) setEditing(null);
+          }}
         >
           <form onSubmit={saveFolder} aria-busy={saving}>
             <fieldset disabled={saving} className="space-y-5">
@@ -219,15 +265,14 @@ export function FolderList({
                 label="Category"
                 defaultValue={editing.category || "General"}
                 placeholder="General"
-                aria-describedby="folder-category-help"
               />
 
-              <p id="folder-category-help" className="text-xs text-muted">
-                Enter a category, or leave it blank to use General.
-              </p>
-
               <div className="flex justify-end gap-3 border-t border-line pt-5">
-                <Button type="button" variant="secondary" onClick={closeEditor}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditing(null)}
+                >
                   Cancel
                 </Button>
 
@@ -240,7 +285,7 @@ export function FolderList({
         </Dialog>
       )}
 
-      {deleting && canEdit && (
+      {deleting && canManage && (
         <ConfirmDelete
           name={deleting.name}
           description="Only empty folders can be deleted. Move or remove its contents first."

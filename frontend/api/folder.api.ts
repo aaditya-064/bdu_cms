@@ -62,3 +62,12 @@ export async function updateFolder(
 
   return response.data.data;
 }
+
+export async function setFolderLock(id: string, isLocked: boolean) {
+  const response = await api.patch<ApiResponse<Folder>>(
+    `/folder/${encodeURIComponent(id)}/lock`,
+    { isLocked },
+  );
+
+  return response.data.data;
+}
