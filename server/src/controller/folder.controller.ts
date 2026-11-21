@@ -43,111 +43,6 @@ export const create = catchAsync(async (req, res) => {
 });
 
 //* update (rename or move)
-// export const update = catchAsync(async (req, res) => {
-//   const { id } = req.params;
-//   const { name, parentFolder } = req.body;
-
-//   const existingFile = await File.findOne({
-//     _id: id,
-//     deletedAt: null,
-//   });
-
-//   if (!existingFile) {
-//     throw new AppError("File not found", 404);
-//   }
-
-//   if (parentFolder) {
-//     const folder = await Folder.findOne({
-//       _id: parentFolder,
-//       deletedAt: null,
-//     });
-
-//     if (!folder) {
-//       throw new AppError("Parent folder not found", 404);
-//     }
-//   }
-
-//   const updatedFile = await File.findOneAndUpdate(
-//     { _id: id, deletedAt: null },
-//     {
-//       $set: {
-//         name: name ?? existingFile.name,
-//         parentFolder: parentFolder ?? existingFile.parentFolder,
-//         updatedBy: req.user._id,
-//       },
-//     },
-//     { new: true, runValidators: true },
-//   );
-
-//   sendResponse(res, {
-//     message: "File updated successfully",
-//     statusCode: 200,
-//     data: updatedFile,
-//   });
-// });
-
-// export const update = catchAsync(async (req, res) => {
-//   const id = String(req.params.id);
-//   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-
-//   // const account = await User.findById(req.user._id).select("role").lean();
-//   // if (account?.role !== "ADMIN" && account?.role !== "DIRECTOR") {
-//   //   throw new AppError("Only admins and directors can rename folders.", 403);
-//   // }
-
-//   if (!isValidObjectId(id)) {
-//     throw new AppError("Invalid folder ID.", 400);
-//   }
-
-//   if (!name || name.length > 200) {
-//     throw new AppError(
-//       "Enter a folder name between 1 and 200 characters.",
-//       400,
-//     );
-//   }
-
-//   const account = await User.findById(req.user._id).select("role").lean();
-
-//   if (account?.role !== Role.ADMIN && account?.role !== Role.DIRECTOR) {
-//     throw new AppError("Only admins and directors can rename folders.", 403);
-//   }
-
-//   const role = account.role === Role.ADMIN ? Role.ADMIN : Role.DIRECTOR;
-//   const scope = await documentScope(role);
-
-//   try {
-//     const previous = await Folder.findOneAndUpdate(
-//       { $and: [{ _id: id, deletedAt: null }, scope.folderFilter] },
-//       { $set: { name, updatedBy: req.user._id } },
-//       { new: false, runValidators: true },
-//     )
-//       .select("_id name")
-//       .lean();
-
-//     if (!previous) {
-//       throw new AppError("Folder unavailable or access denied.", 404);
-//     }
-
-//     describeAudit(res, {
-//       action: "Renamed folder",
-//       recordId: id,
-//       recordName: name,
-//       changes: [{ field: "Folder name", before: previous.name, after: name }],
-//     });
-
-//     sendResponse(res, {
-//       statusCode: 200,
-//       message: "Folder renamed.",
-//       data: { _id: id, name },
-//     });
-//   } catch (error) {
-//     if (error instanceof Error && "code" in error && error.code === 11000) {
-//       throw new AppError("A folder with that name already exists here.", 409);
-//     }
-//     throw error;
-//   }
-// });
-
 export const update = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { name, category } = req.body ?? {};
@@ -157,43 +52,42 @@ export const update = catchAsync(async (req, res) => {
   }
 
   if (name === undefined && category === undefined) {
-    throw new AppError("Provide a folder name or category to update", 400);
+    throw new AppError("Enter a folder name or category to update", 400);
   }
 
-  const folder = await Folder.findOne({ _id: id, deletedAt: null });
-
-  if (!folder) {
-    throw new AppError("Folder not found", 404);
-  }
+  const changes: { name?: string; category?: string } = {};
 
   if (name !== undefined) {
     if (typeof name !== "string" || !name.trim() || name.trim().length > 200) {
-      throw new AppError(
-        "Folder name must be between 1 and 200 characters",
-        400,
-      );
+      throw new AppError("Folder name must be between 1 and 200 characters", 400);
     }
-
-    folder.name = name.trim();
+    changes.name = name.trim();
   }
 
   if (category !== undefined) {
     if (typeof category !== "string") {
       throw new AppError("Category must be text", 400);
     }
-
-    folder.category = category.trim() || "General";
+    changes.category = category.trim() || "General";
   }
 
-  folder.updatedBy = req.user._id;
-
-  try {
-    await folder.save();
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === 11000) {
-      throw new AppError("A folder with this name already exists here", 409);
+  const folder = await Folder.findOneAndUpdate(
+    { _id: id, deletedAt: null },
+    { $set: { ...changes, updatedBy: req.user._id } },
+    { new: true, runValidators: true },
+  ).catch((error: unknown) => {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === 11000
+    ) {
+      throw new AppError("Another folder in this location already has that name", 409);
     }
     throw error;
+  });
+
+  if (!folder) {
+    throw new AppError("Folder not found", 404);
   }
 
   sendResponse(res, {

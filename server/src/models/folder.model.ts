@@ -28,7 +28,6 @@ const folderSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
